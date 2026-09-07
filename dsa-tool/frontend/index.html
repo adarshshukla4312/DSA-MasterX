@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Mastery Engine</title>
+    <meta name="description" content="Transform offline lecture videos into interactive practice ladders and AI-driven assignments">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/css/design-system.css?v=2.1">
+    <link rel="stylesheet" href="/css/layout.css?v=2.1">
+    <link rel="stylesheet" href="/css/pages.css?v=2.1">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Anime.js Animation Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+</head>
+<body>
+    <div class="app" id="app">
+        <!-- Mobile Header (hidden on desktop) -->
+        <div class="mobile-header" id="mobileHeader">
+            <button class="btn-icon" id="menuToggle">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+            </button>
+            <span class="sidebar-logo-text">DSA Mastery</span>
+        </div>
+        
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <div class="sidebar-logo-mark" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+                </div>
+                <span class="sidebar-logo-text">resend <span class="logo-slash">/</span> dsa</span>
+            </div>
+            
+            <div class="sidebar-hw" id="sidebarHardware"></div>
+            
+            <div class="sidebar-divider"></div>
+            
+            <nav class="sidebar-nav" id="sidebarNav">
+                <a href="#/" class="nav-link active" data-page="home">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span>Home</span>
+                </a>
+                <a href="#/library" class="nav-link" data-page="library">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <span>Lecture Library</span>
+                </a>
+                <a href="#/problems" class="nav-link" data-page="problems">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                    <span>Identified Problems</span>
+                </a>
+                <a href="#/practice" class="nav-link" data-page="practice">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="m3 15 2 2 4-4"/></svg>
+                    <span>Practice Sheets</span>
+                </a>
+                <a href="#/dashboard" class="nav-link" data-page="dashboard">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon icon-md"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                    <span>Dashboard</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-divider"></div>
+            
+            <div class="sidebar-stats" id="sidebarStats">
+                <!-- Populated by JS -->
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Pages render here -->
+        </main>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
+    
+    <!-- JS -->
+    <script src="/js/utils.js?v=2.2"></script>
+    <script src="/js/icons.js?v=2.2"></script>
+    <script src="/js/api.js?v=2.2"></script>
+    <script src="/js/components.js?v=2.2"></script>
+    <script src="/js/pages/home.js?v=2.2"></script>
+    <script src="/js/pages/library.js?v=2.2"></script>
+    <script src="/js/pages/problems.js?v=2.2"></script>
+    <script src="/js/pages/practice.js?v=2.2"></script>
+    <script src="/js/pages/dashboard.js?v=2.2"></script>
+    <script src="/js/app.js?v=2.2"></script>
+</body>
+</html>

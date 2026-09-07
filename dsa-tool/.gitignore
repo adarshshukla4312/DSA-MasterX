@@ -1,0 +1,48 @@
+﻿# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Local Environment Secrets & Machine-Specific Config
+.env
+.env.local
+
+# DSA Tool Data & Media
+data/transcripts/
+**/data/transcripts/
+data/audio/
+**/data/audio/
+data/dsa_tool.db
+**/data/dsa_tool.db
+data/dsa_tool.log
+**/data/dsa_tool.log
+*.log
+
+# Video / Audio Media files
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wav
+*.mp3
+
+# Local Tools & Binaries
+tools/
+**/tools/ffmpeg*
+**/bin/ffmpeg*
+
+# Scratch & IDE
+.vscode/
+.idea/
+.agents/
+.streamlit/
+scratch/
+**/scratch/
