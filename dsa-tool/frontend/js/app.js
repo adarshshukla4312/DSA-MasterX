@@ -83,6 +83,7 @@ const App = {
         });
         
         // Cleanup previous page
+        document.body.classList.remove('sidebar-hidden');
         if (this.currentPage && this.currentPage.destroy) {
             this.currentPage.destroy();
         }

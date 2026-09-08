@@ -19,7 +19,7 @@
   padding: 1.5rem;
   overflow-y: auto;
   z-index: 100;
-  transition: transform var(--transition-normal);
+  transition: transform var(--transition-normal), visibility var(--transition-normal);
 }
 
 .main-content {
@@ -28,6 +28,27 @@
   padding: 2rem 3rem 4rem;
   max-width: 1280px;
   width: calc(100% - 260px);
+  transition: margin-left var(--transition-normal), width var(--transition-normal), max-width var(--transition-normal), padding var(--transition-normal);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Focus Mode: Hide sidebar when viewing question details                     */
+/* -------------------------------------------------------------------------- */
+body.sidebar-hidden .sidebar {
+  transform: translateX(-100%);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+body.sidebar-hidden .main-content {
+  margin-left: 0;
+  width: 100%;
+  max-width: 1600px;
+  padding: 1.5rem 2.5rem 4rem;
+}
+
+body.sidebar-hidden .hero-banner {
+  display: none;
 }
 
 .sidebar-logo {

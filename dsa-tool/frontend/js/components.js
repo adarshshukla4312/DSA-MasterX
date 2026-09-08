@@ -406,6 +406,9 @@ const Components = {
         const code = problem.code_reconstruction || '';
         const ts = problem.timestamp_range || [];
         const numStr = String(index + 1).padStart(2, '0');
+        const approaches = Array.isArray(problem.approaches) ? problem.approaches : [];
+        const hasApproaches = approaches.length > 0;
+        const hasCode = code || approaches.some(a => a && a.code && a.code.trim());
 
         return `
         <div class="problem-overview-card stagger-card" data-problem-index="${index}" tabindex="0" role="button" aria-label="View problem ${index + 1}">
@@ -416,25 +419,98 @@ const Components = {
             </div>
 
             <!-- Supporting Insight / Intuition Preview -->
-            ${trick || approach ? `
+            ${hasApproaches ? `
+            <div class="card-trick-preview">
+                <span class="trick-label">${approaches.length} Approach${approaches.length > 1 ? 'es' : ''}:</span>
+                <span class="trick-text">${Utils.escapeHtml(approaches.map(a => a.name || 'Approach').join('  •  '))}</span>
+            </div>` : (trick || approach ? `
             <div class="card-trick-preview">
                 <span class="trick-label">Insight:</span> <span class="trick-text">${Utils.escapeHtml(trick || approach)}</span>
-            </div>` : ''}
+            </div>` : '')}
 
             <!-- Muted Secondary Footer Strip -->
             <div class="card-footer-strip">
                 <div class="card-meta-inline">
                     ${ts.length === 2 ? `<span class="meta-item">${Icons.svg('clock', {class: 'icon-xs'})} ${Utils.escapeHtml(ts[0])} — ${Utils.escapeHtml(ts[1])}</span>` : ''}
                     ${matchedProblem?.difficulty ? `<span class="meta-dot">•</span><span class="meta-item ${matchedProblem.difficulty.toLowerCase()}">${Utils.escapeHtml(matchedProblem.difficulty)}</span>` : ''}
+                    ${hasApproaches ? `<span class="meta-dot">•</span><span class="meta-item approaches-count-pill">${approaches.length} Approaches</span>` : ''}
                     ${matchedProblem?.platform ? `<span class="meta-item muted">${Utils.escapeHtml(matchedProblem.platform)}</span>` : ''}
-                    ${code ? `<span class="meta-dot">•</span><span class="meta-item">${Icons.svg('code', {class: 'icon-xs'})} Java</span>` : ''}
+                    ${hasCode ? `<span class="meta-dot">•</span><span class="meta-item">${Icons.svg('code', {class: 'icon-xs'})} Java</span>` : ''}
                 </div>
 
                 <div class="explore-action">
-                    <span>View Solution</span>
+                    <span>View Approaches</span>
                     ${Icons.svg('arrow-right', {class: 'icon-xs explore-arrow'})}
                 </div>
             </div>
+        </div>`;
+    },
+
+    // ── Approach Card (Multi-Approach Systematic Walkthrough) ────────
+    approachCard(approach, index, totalApproaches) {
+        if (!approach) return '';
+        const name = approach.name || `Approach #${index + 1}`;
+        const steps = Array.isArray(approach.steps) ? approach.steps : [];
+        const timeComplexity = approach.time_complexity || '';
+        const spaceComplexity = approach.space_complexity || '';
+        const code = approach.code || '';
+
+        // Safe clean filename for Java editor tab
+        const tabFilename = `Approach_${index + 1}.java`;
+
+        return `
+        <div class="approach-card">
+            <div class="approach-card-header">
+                <div class="approach-title-group">
+                    <span class="approach-index-pill">#${index + 1}</span>
+                    <h4 class="approach-name">${Utils.escapeHtml(name)}</h4>
+                </div>
+                <div class="complexity-badges">
+                    ${timeComplexity ? `
+                    <span class="complexity-badge time" title="Time Complexity">
+                        ${Icons.svg('clock', {class: 'icon-xs'})}
+                        <span class="badge-label">Time:</span>
+                        <span class="badge-value">${Utils.escapeHtml(timeComplexity)}</span>
+                    </span>` : ''}
+                    ${spaceComplexity ? `
+                    <span class="complexity-badge space" title="Space Complexity">
+                        ${Icons.svg('box', {class: 'icon-xs'})}
+                        <span class="badge-label">Space:</span>
+                        <span class="badge-value">${Utils.escapeHtml(spaceComplexity)}</span>
+                    </span>` : ''}
+                </div>
+            </div>
+
+            ${steps.length > 0 ? `
+            <div class="approach-steps">
+                <ul class="approach-steps-list">
+                    ${steps.map(step => `
+                    <li class="approach-step-item">
+                        <span class="step-bullet">›</span>
+                        <span class="step-text">${Utils.escapeHtml(step)}</span>
+                    </li>`).join('')}
+                </ul>
+            </div>` : (approach.description ? `
+            <div class="approach-steps">
+                <div class="approach-desc-text">${Utils.escapeHtml(approach.description)}</div>
+            </div>` : '')}
+
+            ${code ? `
+            <div class="code-editor-card ij-editor-window approach-editor">
+                <div class="editor-topbar ij-topbar">
+                    <div class="ij-tab-group">
+                        <div class="editor-tab ij-active-tab">
+                            <span class="ij-file-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; background: #3574f0; color: #fff; font-weight: 700; font-size: 9.5px; border-radius: 3px; font-family: var(--font-sans-ui);">C</span>
+                            <span class="ij-tab-filename">${tabFilename}</span>
+                            <span class="ij-tab-close">✕</span>
+                        </div>
+                    </div>
+                    <div class="editor-meta ij-meta">
+                        <span class="caption" style="font-size: 11px; color: #7a7e85; font-family: var(--font-mono);">Java 17 (OpenJDK)</span>
+                    </div>
+                </div>
+                ${Components.codeBlock(code, 'java')}
+            </div>` : ''}
         </div>`;
     },
 
@@ -514,39 +590,91 @@ const Components = {
                 </div>
             </div>` : ''}
 
-            <!-- Step-by-Step Approach Card -->
-            ${approach ? `
-            <div class="strategy-callout-card approach">
-                <div class="callout-header">
-                    ${Icons.svg('compass', {class: 'icon-sm callout-icon'})}
-                    <span>Step-by-Step Approach & Reasoning</span>
-                </div>
-                <div class="callout-body">
-                    ${Utils.escapeHtml(approach)}
-                </div>
-            </div>` : ''}
-
-            <!-- Reconstructed Code Section (IntelliJ IDEA Theme) -->
-            ${code ? `
-            <div class="code-editor-card ij-editor-window">
-                <div class="editor-topbar ij-topbar">
-                    <div class="ij-tab-group">
-                        <div class="editor-tab ij-active-tab">
-                            <span class="ij-file-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; background: #3574f0; color: #fff; font-weight: 700; font-size: 9.5px; border-radius: 3px; font-family: var(--font-sans-ui);">C</span>
-                            <span class="ij-tab-filename">Solution.java</span>
-                            <span class="ij-tab-close">✕</span>
+            <!-- Multi-Approach Section (New Structured Format) or Fallback -->
+            ${(() => {
+                const approaches = Array.isArray(problem.approaches) ? problem.approaches : [];
+                if (approaches.length > 0) {
+                    return `
+                    <div class="approaches-section">
+                        <div class="approaches-section-header">
+                            <div class="approaches-section-title">
+                                ${Icons.svg('layers', {class: 'icon-sm callout-icon'})}
+                                <span>Algorithmic Approaches (${approaches.length})</span>
+                            </div>
+                            <span class="approaches-section-sub">Select an approach tab below to switch strategies</span>
                         </div>
-                    </div>
-                    <div class="editor-meta ij-meta">
-                        <span class="caption" style="font-size: 11px; color: #7a7e85; font-family: var(--font-mono);">Java 17 (OpenJDK)</span>
-                    </div>
-                </div>
-                ${Components.codeBlock(code, 'java')}
-            </div>` : `
-            <div class="glass-card" style="padding: 1.5rem; text-align: center; color: var(--color-ash);">
-                ${Icons.svg('file-text', {class: 'icon-lg', style: 'margin-bottom: 8px;'})}
-                <div class="body-sm">This problem was discussed verbally and conceptually in the lecture.</div>
-            </div>`}
+
+                        <!-- Discrete Tab Switcher (Interactive Strategy Navigator) -->
+                        <div class="discrete-tab-rail approaches-tabs-nav" role="tablist" aria-label="Problem solving approaches">
+                            ${approaches.map((appr, idx) => {
+                                const rawName = appr.name || `Approach #${idx + 1}`;
+                                const bracketMatch = rawName.match(/\(([^)]+)\)/);
+                                let tabLabel = bracketMatch && bracketMatch[1].trim() ? bracketMatch[1].trim() : rawName;
+                                if (tabLabel.toLowerCase().startsWith('approach')) {
+                                    tabLabel = `Approach ${idx + 1}`;
+                                }
+                                const numStr = String(idx + 1).padStart(2, '0');
+                                return `
+                                <button type="button" class="discrete-tab-btn approach-tab-btn ${idx === 0 ? 'active' : ''}" data-approach-tab="${idx}" role="tab" aria-selected="${idx === 0 ? 'true' : 'false'}" title="${Utils.escapeHtml(rawName)}">
+                                    <span class="discrete-tab-num">${numStr}</span>
+                                    <span class="discrete-tab-label">${Utils.escapeHtml(tabLabel)}</span>
+                                </button>`;
+                            }).join('')}
+                        </div>
+
+                        <!-- Tab Panels (Only active approach displayed) -->
+                        <div class="approaches-tab-panels">
+                            ${approaches.map((appr, aIdx) => `
+                                <div class="approach-tab-panel ${aIdx === 0 ? 'active' : ''}" data-approach-panel="${aIdx}" role="tabpanel">
+                                    ${Components.approachCard(appr, aIdx, approaches.length)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>`;
+                }
+
+                // Fallback for legacy processed lectures
+                let fallbackHtml = '';
+                if (approach) {
+                    fallbackHtml += `
+                    <div class="strategy-callout-card approach">
+                        <div class="callout-header">
+                            ${Icons.svg('compass', {class: 'icon-sm callout-icon'})}
+                            <span>Step-by-Step Approach & Reasoning</span>
+                        </div>
+                        <div class="callout-body">
+                            ${Utils.escapeHtml(approach)}
+                        </div>
+                    </div>`;
+                }
+
+                if (code) {
+                    fallbackHtml += `
+                    <div class="code-editor-card ij-editor-window">
+                        <div class="editor-topbar ij-topbar">
+                            <div class="ij-tab-group">
+                                <div class="editor-tab ij-active-tab">
+                                    <span class="ij-file-icon" style="display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; background: #3574f0; color: #fff; font-weight: 700; font-size: 9.5px; border-radius: 3px; font-family: var(--font-sans-ui);">C</span>
+                                    <span class="ij-tab-filename">Solution.java</span>
+                                    <span class="ij-tab-close">✕</span>
+                                </div>
+                            </div>
+                            <div class="editor-meta ij-meta">
+                                <span class="caption" style="font-size: 11px; color: #7a7e85; font-family: var(--font-mono);">Java 17 (OpenJDK)</span>
+                            </div>
+                        </div>
+                        ${Components.codeBlock(code, 'java')}
+                    </div>`;
+                } else if (!approach) {
+                    fallbackHtml += `
+                    <div class="glass-card" style="padding: 1.5rem; text-align: center; color: var(--color-ash);">
+                        ${Icons.svg('file-text', {class: 'icon-lg', style: 'margin-bottom: 8px;'})}
+                        <div class="body-sm">This problem was discussed verbally and conceptually in the lecture.</div>
+                    </div>`;
+                }
+
+                return fallbackHtml;
+            })()}
 
             <!-- Matched Online Problem Link Banner (if matched) -->
             ${matchedProblem ? `
@@ -1073,10 +1201,6 @@ const Components = {
             <!-- Professional Header -->
             <div class="checklist-header">
                 <div class="checklist-header-left">
-                    <div class="badge-pill" style="color: var(--color-accent-green); border-color: rgba(17,255,153,0.25); background: rgba(17,255,153,0.05); font-size: 10px; margin-bottom: 6px;">
-                        ${Icons.svg('shield-check', {class: 'icon-xs', style: 'color: var(--color-accent-green); margin-right: 4px;'})}
-                        <span>PROBLEM-SOLVING METHODOLOGY</span>
-                    </div>
                     <h3 class="checklist-title">${Utils.escapeHtml(title)}</h3>
                     <p class="checklist-philosophy">
                         An intuition-first engineering workflow: extract constraints, anchor brute-force, eliminate redundancies, dry-run on paper, and defend complexities.
@@ -1120,7 +1244,7 @@ const Components = {
             <!-- Stage Accordions -->
             <div class="checklist-stages-list">
                 ${stages.map((stage, sIdx) => {
-                    const isOpen = defaultOpen || sIdx === 0;
+                    const isOpen = Boolean(defaultOpen);
                     return `
                     <div class="checklist-stage-box ${isOpen ? 'open' : ''} ${stage.isBonus ? 'bonus-stage' : ''}" id="stageBox-${Utils.escapeHtml(scope)}-${stage.id}" data-stage-id="${stage.id}">
                         <!-- Stage Accordion Header -->
@@ -1459,8 +1583,65 @@ const Components = {
                 ${Components.flashcardDeck(flashcards, lectureId)}
             </div>
         </div>`;
+    },
+
+    // ── Folder Picker Modal ──────────────────────────────────────────
+    folderPickerModal(currentPath = '', videoCount = 0) {
+        return `
+        <div class="modal" style="max-width: 580px; width: 95%;">
+            <div class="modal-header">
+                <div class="flex-row gap-sm" style="align-items: center;">
+                    <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(59, 130, 246, 0.12); display: flex; align-items: center; justify-content: center; color: var(--color-brand);">
+                        ${Icons.svg('folder', {class: 'icon-md'})}
+                    </div>
+                    <div>
+                        <h2 class="heading-md" style="margin: 0; color: var(--color-ink);">Select Lectures Folder</h2>
+                        <p class="body-xs" style="margin: 2px 0 0 0; color: var(--color-ash);">Choose where your DSA video recordings are located</p>
+                    </div>
+                </div>
+                <button class="btn-icon modal-close" data-action="close-modal" aria-label="Close dialog">${Icons.svg('x', {class: 'icon-md'})}</button>
+            </div>
+            
+            <div class="modal-body flex-col gap-lg" style="padding: 20px 24px;">
+                <!-- Native Explorer Browse Button -->
+                <div style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.15); border-radius: 12px; padding: 20px; text-align: center;">
+                    <p class="body-sm" style="color: var(--color-ash); margin: 0 0 14px 0;">
+                        Open your computer's native file explorer to choose a folder:
+                    </p>
+                    <button type="button" class="btn-primary flex-row gap-sm" id="btnModalNativeBrowse" style="margin: 0 auto; padding: 10px 22px; font-weight: 600; font-size: 0.9rem;">
+                        ${Icons.svg('folder', {class: 'icon-sm'})}
+                        <span id="btnModalNativeBrowseText">Browse on Computer...</span>
+                    </button>
+                </div>
+
+                <div class="flex-row gap-sm" style="align-items: center;">
+                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
+                    <span class="body-xs" style="color: var(--color-ash); text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px;">or enter / paste folder path</span>
+                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></div>
+                </div>
+
+                <!-- Manual Path Input -->
+                <div class="flex-col gap-xs">
+                    <label class="body-xs" style="color: var(--color-ash); font-weight: 500;">Folder Directory Path</label>
+                    <div class="flex-row gap-sm" style="align-items: center;">
+                        <input type="text" class="input" id="modalFolderInput" value="${Utils.escapeHtml(currentPath)}" placeholder="e.g. C:\\Java DSA or D:\\Courses\\DSA" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                        <button type="button" class="btn-ghost" id="btnModalCheckFolder" style="padding: 8px 14px; flex-shrink: 0;">Check</button>
+                    </div>
+                    <!-- Live Path Feedback -->
+                    <div id="modalFolderFeedback" style="margin-top: 6px; font-size: 0.82rem; min-height: 20px; display: flex; align-items: center;">
+                        ${videoCount > 0 ? `<span style="color: var(--color-accent-green); display: flex; align-items: center; gap: 4px;">${Icons.svg('check', {class: 'icon-xs'})} Current folder contains <strong>${videoCount}</strong> video file(s)</span>` : ''}
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer flex-row" style="justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.08);">
+                <button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>
+                <button type="button" class="btn-primary" id="btnModalSaveFolder">Save & Rescan</button>
+            </div>
+        </div>`;
     }
 };
+
 
 window.Components = Components;
 

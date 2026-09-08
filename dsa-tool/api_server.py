@@ -493,6 +493,96 @@ def api_set_lecture_dir(req: SettingsLectureDirRequest):
         "video_count": len(scanned)
     }
 
+def _open_native_folder_picker(initial_dir: str = "") -> str:
+    """Opens the native OS folder picker dialog."""
+    result = []
+    def _tk_worker():
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            root.focus_force()
+            init_dir = initial_dir if (initial_dir and os.path.exists(initial_dir)) else None
+            folder = filedialog.askdirectory(
+                title="Select DSA Video Lectures Folder",
+                initialdir=init_dir
+            )
+            root.destroy()
+            result.append(folder or "")
+        except Exception:
+            result.append("")
+
+    t = threading.Thread(target=_tk_worker, daemon=True)
+    t.start()
+    t.join(timeout=180)
+    
+    if result and result[0]:
+        return result[0]
+        
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            ps_script = f"""
+            Add-Type -AssemblyName System.Windows.Forms
+            $f = New-Object System.Windows.Forms.FolderBrowserDialog
+            $f.Description = "Select DSA Video Lectures Folder"
+            $f.ShowNewFolderButton = $true
+            if ('{initial_dir}' -ne '' -and (Test-Path '{initial_dir}')) {{
+                $f.SelectedPath = '{initial_dir}'
+            }}
+            if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{
+                [Console]::Write($f.SelectedPath)
+            }}
+            """
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True, text=True, timeout=180
+            )
+            val = res.stdout.strip()
+            if val and os.path.exists(val):
+                return val
+        except Exception:
+            pass
+
+    return ""
+
+@app.get("/api/settings/validate-dir")
+def api_validate_dir(path: str = Query("")):
+    raw = path.strip().strip('"').strip("'")
+    if not raw:
+        return {"exists": False, "video_count": 0, "path": raw, "error": "Path cannot be empty"}
+    p = Path(raw).resolve()
+    if not p.exists() or not p.is_dir():
+        return {"exists": False, "video_count": 0, "path": str(p), "error": "Directory does not exist"}
+    videos = scan_videos(p)
+    return {
+        "exists": True,
+        "video_count": len(videos),
+        "path": str(p)
+    }
+
+@app.post("/api/settings/browse-folder")
+def api_browse_folder():
+    cur = str(config.LECTURE_DIR) if config.LECTURE_DIR else ""
+    chosen = _open_native_folder_picker(cur)
+    if not chosen:
+        return {"cancelled": True, "lecture_dir": cur}
+    
+    p = Path(chosen).resolve()
+    if p.exists() and p.is_dir():
+        updated = update_lecture_dir(p)
+        scanned = scan_videos(updated)
+        return {
+            "cancelled": False,
+            "lecture_dir": str(updated),
+            "exists": True,
+            "video_count": len(scanned)
+        }
+    return {"cancelled": True, "lecture_dir": cur}
+
+
 # --- Misc ---
 
 @app.get("/api/pipeline-hash")

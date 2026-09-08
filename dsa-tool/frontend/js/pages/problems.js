@@ -10,6 +10,7 @@ const ProblemsPage = {
     _keydownHandler: null,
 
     async render(container) {
+        document.body.classList.remove('sidebar-hidden');
         this._container = container;
         
         container.innerHTML = `
@@ -85,6 +86,7 @@ const ProblemsPage = {
     },
 
     destroy() {
+        document.body.classList.remove('sidebar-hidden');
         if (this._keydownHandler) {
             window.removeEventListener('keydown', this._keydownHandler);
             this._keydownHandler = null;
@@ -130,6 +132,27 @@ const ProblemsPage = {
                 const index = parseInt(problemOverviewCard.dataset.problemIndex, 10);
                 if (!isNaN(index)) {
                     await this._selectProblem(index);
+                }
+                return;
+            }
+
+            // 2.5 Approach Tab Switcher
+            const approachTabBtn = e.target.closest('[data-approach-tab]');
+            if (approachTabBtn) {
+                const tabIdx = parseInt(approachTabBtn.dataset.approachTab, 10);
+                const section = approachTabBtn.closest('.approaches-section');
+                if (section && !isNaN(tabIdx)) {
+                    // Update tab buttons
+                    section.querySelectorAll('[data-approach-tab]').forEach(btn => {
+                        const isTarget = parseInt(btn.dataset.approachTab, 10) === tabIdx;
+                        btn.classList.toggle('active', isTarget);
+                        btn.setAttribute('aria-selected', isTarget ? 'true' : 'false');
+                    });
+                    // Update tab panels
+                    section.querySelectorAll('[data-approach-panel]').forEach(panel => {
+                        const isTarget = parseInt(panel.dataset.approachPanel, 10) === tabIdx;
+                        panel.classList.toggle('active', isTarget);
+                    });
                 }
                 return;
             }
@@ -441,6 +464,7 @@ const ProblemsPage = {
     },
 
     async _selectLecture(id) {
+        document.body.classList.remove('sidebar-hidden');
         if (this._selectedLectureId === id && this._viewMode === 'lecture_overview') return;
         this._selectedLectureId = id;
         this._viewMode = 'lecture_overview';
@@ -460,6 +484,8 @@ const ProblemsPage = {
         const wasInDetail = this._viewMode === 'question_detail';
         this._viewMode = 'question_detail';
         this._selectedProblemIndex = index;
+        document.body.classList.add('sidebar-hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
 
         if (!wasInDetail) {
             // Mode 1 -> Mode 2 transition: Animate left panel into question list
@@ -485,6 +511,7 @@ const ProblemsPage = {
     async _backToLectures() {
         this._viewMode = 'lecture_overview';
         this._selectedProblemIndex = null;
+        document.body.classList.remove('sidebar-hidden');
 
         this._renderLeftPanel(true);
         this._updateHeader();
@@ -494,6 +521,7 @@ const ProblemsPage = {
     async _backToOverview() {
         this._viewMode = 'lecture_overview';
         this._selectedProblemIndex = null;
+        document.body.classList.remove('sidebar-hidden');
 
         this._renderLeftPanel(true);
         this._updateHeader();

@@ -32,23 +32,30 @@ Analyze the transcript carefully and extract:
 
 This is the MOST IMPORTANT part of your task. Follow these rules strictly:
 
-1. **Reconstruct ALL approaches**: If the instructor first shows a brute-force solution and then an optimized solution for the same problem, include BOTH in `code_reconstruction` with clear comments separating them (e.g., `// Brute Force O(n^2)` and `// Optimized O(n)`).
+1. **Extract ALL approaches as SEPARATE entries**: If the instructor discusses or codes multiple approaches (brute force, better, optimal), each one MUST be a separate object in the `approaches` array. Do NOT merge them.
 
-2. **Match the instructor's coding style**: If the lecture topic is Recursion, reconstruct using pure recursive helper functions — do NOT substitute iterative loops. If the instructor uses a while loop, use a while loop. Mirror their variable names, method signatures, and structure as closely as the transcript allows.
+2. **Name approaches sequentially**: Name each approach "Approach #1", "Approach #2", etc. If the approach uses a well-known technique (e.g., HashSet, Binary Search, Kadane's Algorithm, Two Pointers), append it in brackets: "Approach #2 (HashSet)".
 
-3. **Two modes of code reconstruction**:
-   - **If the instructor MANUALLY CODES the problem on screen** (you'll recognize this from narration like "let me write", "I'll code this", "so the function will be", line-by-line variable declarations, etc.): **Extract and reconstruct their EXACT code faithfully**. Include the full method signature, helper methods, class definitions, and constructors they wrote. Mirror their implementation precisely.
-   - **If the instructor only DISCUSSES a problem verbally** (explains the approach, intuition, or recurrence without line-by-line coding): **Write clean, compilable Java code yourself** that implements the exact approach/algorithm the instructor described. Use the same technique, data structures, and complexity they mentioned.
+3. **Include complexity for EVERY approach**: Each approach MUST have `time_complexity` and `space_complexity` (e.g., "O(N log N)", "O(1)"). If the instructor states them, use their exact values. If not stated, infer from the algorithm.
 
-4. **One problem = One entry**: If the instructor solves 5 distinct problems, output 5 separate entries in `problems_discussed`. Do NOT merge related but distinct problems (e.g., pre-order, in-order, and post-order traversals are 3 separate entries if taught separately). However, if the instructor explicitly builds them as part of one combined class implementation (e.g., a Queue class with push/pop/front), keep them as one entry.
+4. **Steps as bullet points**: Each approach MUST have a `steps` array — short, clear bullet points describing what to do in that approach. Think of these as the algorithm outline a student would write in their notes.
 
-5. **Capture edge case handling**: If the instructor adds null checks, empty array checks, boundary conditions, or special return values (like -1 for "not found"), include them in the reconstructed code.
+5. **Match the instructor's coding style**: If the lecture topic is Recursion, reconstruct using pure recursive helper functions — do NOT substitute iterative loops. If the instructor uses a while loop, use a while loop. Mirror their variable names, method signatures, and structure as closely as the transcript allows.
 
-6. **DOUBLE-CHECK before outputting**: After constructing your response, re-read the transcript one more time and verify:
+6. **Two modes of code reconstruction**:
+   - **If the instructor MANUALLY CODES the approach on screen** (you'll recognize this from narration like "let me write", "I'll code this", "so the function will be", line-by-line variable declarations, etc.): **Extract and reconstruct their EXACT code faithfully** in that approach's `code` field.
+   - **If the instructor only DISCUSSES an approach verbally** (explains the algorithm without line-by-line coding): **Write clean, compilable Java code yourself** in the `code` field. If the approach was discussed very briefly (just mentioned as an option), you may leave `code` as an empty string.
+
+7. **One problem = One entry**: If the instructor solves 5 distinct problems, output 5 separate entries in `problems_discussed`. Do NOT merge related but distinct problems (e.g., pre-order, in-order, and post-order traversals are 3 separate entries if taught separately). However, if the instructor explicitly builds them as part of one combined class implementation (e.g., a Queue class with push/pop/front), keep them as one entry.
+
+8. **Capture edge case handling**: If the instructor adds null checks, empty array checks, boundary conditions, or special return values (like -1 for "not found"), include them in the reconstructed code.
+
+9. **DOUBLE-CHECK before outputting**: After constructing your response, re-read the transcript one more time and verify:
    - Did you miss any problem that was coded? (Look for phrases like "let's solve", "let me code this", "the next question is", "now let's implement")
    - Did you miss any approach? (Look for "brute force", "better approach", "optimal", "let me show you another way")
-   - Is every `code_reconstruction` complete and compilable Java?
+   - Does every approach with code have complete, compilable Java?
    - Are boundary conditions and base cases included?
+   - Does EVERY approach have time_complexity and space_complexity filled in?
 
 ## Output Format
 
@@ -65,9 +72,25 @@ Respond with ONLY valid JSON in exactly this format:
   "problems_discussed": [
     {
       "description": "Clear problem statement — what are we given, what do we need to find?",
-      "approach": "The algorithm or approach used (mention complexity)",
-      "core_trick": "The key insight that makes the solution work",
-      "code_reconstruction": "public int solve(int[] arr) {\n    // Complete, compilable Java code\n    // as the instructor wrote on screen\n}",
+      "core_trick": "The key insight that makes the optimal solution work",
+      "approaches": [
+        {
+          "name": "Approach #1 (Technique Name If Well-Known)",
+          "steps": ["Step 1 description", "Step 2 description", "Step 3 description"],
+          "time_complexity": "O(N^2)",
+          "space_complexity": "O(1)",
+          "code": "public int solve(int[] arr) {\n    // Complete, compilable Java code\n}"
+        },
+        {
+          "name": "Approach #2 (Technique Name If Well-Known)",
+          "steps": ["Step 1 description", "Step 2 description"],
+          "time_complexity": "O(N)",
+          "space_complexity": "O(N)",
+          "code": "public int solveOptimal(int[] arr) {\n    // Complete, compilable Java code\n}"
+        }
+      ],
+      "approach": "Brief one-line summary of the optimal approach and its complexity",
+      "code_reconstruction": "The code of the OPTIMAL (best) approach only, for backward compatibility",
       "input_format": "What inputs does the problem take?",
       "output_format": "What output is expected?",
       "timestamp_range": ["MM:SS", "MM:SS"]

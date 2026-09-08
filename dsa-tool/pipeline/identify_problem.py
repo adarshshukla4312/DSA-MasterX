@@ -82,8 +82,18 @@ def unified_concept_analysis(
     
     # Rank candidates by similarity score (tag + text overlap)
     lecture_patterns = list(set(topics + techniques))
-    combined_desc = " ".join([p.get("description", "") + " " + p.get("approach", "") for p in problems_discussed if isinstance(p, dict)])
-    if not combined_desc:
+    combined_desc = ""
+    for p in problems_discussed:
+        if not isinstance(p, dict):
+            continue
+        combined_desc += p.get("description", "") + " "
+        combined_desc += p.get("approach", "") + " "
+        # Extract from structured approaches[] if present
+        for appr in p.get("approaches", []):
+            if isinstance(appr, dict):
+                combined_desc += appr.get("name", "") + " "
+                combined_desc += " ".join(appr.get("steps", [])) + " "
+    if not combined_desc.strip():
         combined_desc = " ".join(topics + techniques)
         
     ranked_candidates = find_candidates(combined_desc, lecture_patterns, all_problems, top_k=25)

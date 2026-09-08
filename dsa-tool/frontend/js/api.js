@@ -86,7 +86,10 @@ const API = {
     settings: {
         getLectureDir: () => API.get('/settings/lecture-dir'),
         setLectureDir: (lectureDir) => API.post('/settings/lecture-dir', { lecture_dir: lectureDir }),
+        validateDir: (path) => API.get(`/settings/validate-dir?path=${encodeURIComponent(path)}`),
+        browseFolder: () => API.post('/settings/browse-folder'),
     },
+
     
     // Dashboard
     stats: () => API.get('/stats'),

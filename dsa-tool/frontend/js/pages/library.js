@@ -210,24 +210,9 @@ window.LibraryPage = {
         
         const changeFolderBtn = document.getElementById('changeFolderBtn');
         const currentLectureDirEl = document.getElementById('currentLectureDir');
-        const handleChangeFolder = async () => {
-            const cur = this._currentLectureDir || '';
-            const newPath = prompt('Enter the full path to your DSA lecture videos folder on this computer:\n(e.g. D:\\Videos\\DSA or C:\\Java DSA)', cur);
-            if (newPath && newPath.trim() && newPath.trim() !== cur) {
-                try {
-                    const res = await API.settings.setLectureDir(newPath.trim());
-                    this._currentLectureDir = res.lecture_dir;
-                    if (currentLectureDirEl) currentLectureDirEl.textContent = res.lecture_dir;
-                    if (window.Toast) Toast.success(`Folder updated! Found ${res.video_count} videos.`);
-                    await API.lectures.scan();
-                    this.render(this.container);
-                } catch (err) {
-                    alert(err.message || 'Failed to update folder. Please verify the folder path exists.');
-                }
-            }
-        };
-        if (changeFolderBtn) changeFolderBtn.onclick = handleChangeFolder;
-        if (currentLectureDirEl) currentLectureDirEl.onclick = handleChangeFolder;
+        if (changeFolderBtn) changeFolderBtn.onclick = () => this.openFolderPickerModal();
+        if (currentLectureDirEl) currentLectureDirEl.onclick = () => this.openFolderPickerModal();
+
 
         
         // Remove previous click listener if exists on container to prevent stacking
@@ -587,7 +572,110 @@ window.LibraryPage = {
         }
     },
     
+    openFolderPickerModal() {
+        const cur = this._currentLectureDir || '';
+        const videoCount = this._lectures ? this._lectures.length : 0;
+        
+        App.showModal(Components.folderPickerModal(cur, videoCount));
+        
+        const modalInput = document.getElementById('modalFolderInput');
+        const browseBtn = document.getElementById('btnModalNativeBrowse');
+        const browseText = document.getElementById('btnModalNativeBrowseText');
+        const checkBtn = document.getElementById('btnModalCheckFolder');
+        const feedback = document.getElementById('modalFolderFeedback');
+        const saveBtn = document.getElementById('btnModalSaveFolder');
+
+        const validatePath = async (val) => {
+            if (!val || !val.trim()) {
+                if (feedback) feedback.innerHTML = '<span style="color: var(--color-ash);">Enter a folder path</span>';
+                return false;
+            }
+            try {
+                const res = await API.settings.validateDir(val.trim());
+                if (res.exists) {
+                    if (feedback) feedback.innerHTML = `<span style="color: var(--color-accent-green); display: flex; align-items: center; gap: 4px;">${Icons.svg('check', {class: 'icon-xs'})} Valid folder &bull; Found <strong>${res.video_count}</strong> video file(s)</span>`;
+                    return true;
+                } else {
+                    if (feedback) feedback.innerHTML = `<span style="color: var(--color-accent-red); display: flex; align-items: center; gap: 4px;">${Icons.svg('x', {class: 'icon-xs'})} ${res.error || 'Directory does not exist'}</span>`;
+                    return false;
+                }
+            } catch (err) {
+                if (feedback) feedback.innerHTML = `<span style="color: var(--color-accent-red);">${err.message || 'Validation error'}</span>`;
+                return false;
+            }
+        };
+
+        if (modalInput) {
+            modalInput.addEventListener('input', Utils.debounce(() => {
+                validatePath(modalInput.value);
+            }, 350));
+            modalInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (saveBtn) saveBtn.click();
+                }
+            });
+        }
+
+        if (checkBtn) {
+            checkBtn.addEventListener('click', () => {
+                validatePath(modalInput ? modalInput.value : '');
+            });
+        }
+
+        if (browseBtn) {
+            browseBtn.addEventListener('click', async () => {
+                try {
+                    browseBtn.disabled = true;
+                    if (browseText) browseText.textContent = 'Waiting for selection...';
+                    const res = await API.settings.browseFolder();
+                    if (!res.cancelled && res.lecture_dir) {
+                        this._currentLectureDir = res.lecture_dir;
+                        const currentEl = document.getElementById('currentLectureDir');
+                        if (currentEl) currentEl.textContent = res.lecture_dir;
+                        App.closeModal();
+                        if (window.Toast) Toast.success(`Folder updated! Found ${res.video_count} videos.`);
+                        await API.lectures.scan();
+                        this.render(this.container);
+                    }
+                } catch (err) {
+                    if (window.Toast) Toast.error('Could not browse folder: ' + err.message);
+                } finally {
+                    browseBtn.disabled = false;
+                    if (browseText) browseText.textContent = 'Browse on Computer...';
+                }
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const pathVal = modalInput ? modalInput.value.trim() : '';
+                if (!pathVal) {
+                    if (feedback) feedback.innerHTML = '<span style="color: var(--color-accent-red);">Please enter a folder path</span>';
+                    return;
+                }
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+                try {
+                    const res = await API.settings.setLectureDir(pathVal);
+                    this._currentLectureDir = res.lecture_dir;
+                    const currentEl = document.getElementById('currentLectureDir');
+                    if (currentEl) currentEl.textContent = res.lecture_dir;
+                    App.closeModal();
+                    if (window.Toast) Toast.success(`Folder updated! Found ${res.video_count} videos.`);
+                    await API.lectures.scan();
+                    this.render(this.container);
+                } catch (err) {
+                    if (feedback) feedback.innerHTML = `<span style="color: var(--color-accent-red);">${err.message || 'Error updating folder'}</span>`;
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save & Rescan';
+                }
+            });
+        }
+    },
+    
     destroy() {
+
         if (this._pollInterval) {
             clearInterval(this._pollInterval);
             this._pollInterval = null;

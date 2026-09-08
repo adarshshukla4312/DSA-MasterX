@@ -1011,6 +1011,393 @@
 }
 
 /* ========================================================================== */
+/* Multi-Approach Section & Systematic Walkthrough Cards                       */
+/* ========================================================================== */
+.approaches-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.approaches-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 4px;
+}
+
+.approaches-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #60a5fa;
+  letter-spacing: 0.01em;
+}
+
+.approaches-section-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: var(--font-sans-ui);
+}
+
+/* ========================================================================== */
+/* Segmented Approach Switcher Tabs                                            */
+/* ========================================================================== */
+/* Discrete Strategy Tabs (System B / Vercel Ultra-Clean)                     */
+/* ========================================================================== */
+.approaches-section {
+  margin-top: 24px;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.approaches-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.approaches-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+.approaches-section-sub {
+  font-family: var(--font-sans-ui);
+  font-size: 12px;
+  color: var(--color-mute);
+}
+
+.discrete-tab-rail,
+.approaches-tabs-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface-deep);
+  border: 1px solid var(--color-hairline);
+  border-radius: 9999px;
+  padding: 4px 6px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+
+.discrete-tab-rail::-webkit-scrollbar,
+.approaches-tabs-nav::-webkit-scrollbar {
+  display: none;
+}
+
+/* Discrete Tab Button */
+.discrete-tab-btn,
+.approach-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  color: var(--color-mute);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  outline: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.discrete-tab-btn:hover,
+.approach-tab-btn:hover {
+  color: var(--color-ink);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--color-hairline);
+}
+
+/* Active State: Elevated pill, smooth expansion */
+.discrete-tab-btn.active,
+.approach-tab-btn.active {
+  color: var(--color-ink);
+  background: var(--color-surface-elevated);
+  border-color: var(--color-hairline-strong);
+  padding: 6px 16px 6px 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Tab Number: Always visible (01, 02, 03) */
+.discrete-tab-num,
+.approach-tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-ash);
+  background: transparent;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  transition: color 0.18s ease;
+  flex-shrink: 0;
+}
+
+.discrete-tab-btn:hover .discrete-tab-num,
+.approach-tab-btn:hover .approach-tab-num {
+  color: var(--color-body);
+}
+
+.discrete-tab-btn.active .discrete-tab-num,
+.approach-tab-btn.active .approach-tab-num {
+  color: var(--color-accent-blue);
+  font-weight: 700;
+}
+
+/* Tab Label: Collapsed & hidden by default (unclicked) */
+.discrete-tab-label,
+.approach-tab-name {
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-left: 0;
+  font-family: var(--font-sans-ui);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  pointer-events: none;
+  filter: blur(4px);
+  transition: max-width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              margin 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              filter 0.2s ease;
+}
+
+/* Tab Label: Expands smoothly on click (active) */
+.discrete-tab-btn.active .discrete-tab-label,
+.approach-tab-btn.active .approach-tab-name {
+  max-width: 320px;
+  opacity: 1;
+  margin-left: 8px;
+  filter: blur(0px);
+  pointer-events: auto;
+}
+
+.approaches-tab-panels {
+  display: block;
+}
+
+.approach-tab-panel {
+  display: none;
+}
+
+.approach-tab-panel.active {
+  display: block;
+  animation: discreteFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes discreteFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================================================== */
+/* Active Approach Card (Pitch-Black Surface & Outline-Only Metrics)         */
+/* ========================================================================== */
+.approach-card {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-card);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  transition: border-color var(--transition-fast);
+}
+
+.approach-card:hover {
+  border-color: var(--color-hairline-strong);
+}
+
+.approach-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  background: transparent;
+  border-bottom: 1px solid var(--color-hairline);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.approach-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Outline-only approach index indicator — NO color fill */
+.approach-index-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-mute);
+  background: transparent;
+  border: 1px solid var(--color-hairline-strong);
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.approach-name {
+  font-family: var(--font-sans-ui);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+.complexity-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Outline-only complexity chips — strictly NO background fills */
+.complexity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: transparent !important;
+}
+
+.complexity-badge .badge-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.complexity-badge .badge-value {
+  font-weight: 600;
+}
+
+.complexity-badge.time {
+  color: var(--color-accent-yellow);
+  border: 1px solid rgba(255, 197, 61, 0.32);
+}
+
+.complexity-badge.space {
+  color: var(--color-accent-green);
+  border: 1px solid rgba(17, 255, 153, 0.30);
+}
+
+/* Steps List with generous spacing */
+.approach-steps {
+  padding: 20px 24px;
+}
+
+.approach-steps-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ash);
+  margin-bottom: 12px;
+}
+
+.approach-steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.approach-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--color-body);
+}
+
+.approach-step-item .step-bullet {
+  font-family: var(--font-mono);
+  color: var(--color-ash);
+  font-size: 13px;
+  line-height: 1.65;
+  font-weight: 600;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.approach-desc-text {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--color-body);
+}
+
+.approach-card .code-editor-card.ij-editor-window.approach-editor {
+  border-radius: 0;
+  border: none;
+  border-top: 1px solid var(--color-hairline);
+  box-shadow: none;
+}
+
+.approaches-count-pill {
+  color: var(--color-mute) !important;
+  background: transparent !important;
+  border: 1px solid var(--color-hairline-strong);
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+/* ========================================================================== */
 /* IntelliJ IDEA Java Code Editor Window & Syntax Theme */
 /* ========================================================================== */
 .code-editor-card.ij-editor-window {
