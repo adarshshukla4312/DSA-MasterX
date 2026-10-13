@@ -15,6 +15,20 @@ if exist "dsa-tool" cd /d "%~dp0dsa-tool"
 
 :: 2. Detect Python
 set "PYTHON_CMD="
+where py >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    py -3.11 -c "exit(0)" >nul 2>&1
+    if %ERRORLEVEL% equ 0 (
+        set "PYTHON_CMD=py -3.11"
+        goto :python_found
+    )
+    py -3.12 -c "exit(0)" >nul 2>&1
+    if %ERRORLEVEL% equ 0 (
+        set "PYTHON_CMD=py -3.12"
+        goto :python_found
+    )
+)
+
 where python >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     set "PYTHON_CMD=python"
@@ -85,6 +99,9 @@ echo [OK] All dependencies installed.
 :: 5. Run Preflight Startup Check (config, lecture directory, ffmpeg, models, db)
 echo.
 set PYTHONUTF8=1
+set HF_HUB_DISABLE_SYMLINKS_WARNING=1
+set OMP_NUM_THREADS=12
+set MKL_NUM_THREADS=12
 %VENV_PYTHON% startup_check.py
 if %ERRORLEVEL% neq 0 (
     echo [!] Preflight check exited with warnings. Attempting to start server...

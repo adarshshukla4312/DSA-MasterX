@@ -81,7 +81,19 @@ def get_job_status(lecture_id: str) -> Dict[str, Any]:
     """Returns current active job status or DB status for a lecture."""
     with _jobs_lock:
         if lecture_id in ACTIVE_JOBS:
-            return dict(ACTIVE_JOBS[lecture_id])
+            job = dict(ACTIVE_JOBS[lecture_id])
+            th_name = job.get("thread_name")
+            if th_name and job.get("status") in ("processing", "starting"):
+                is_alive = any(t.name == th_name and t.is_alive() for t in threading.enumerate())
+                job["thread_alive"] = is_alive
+                if not is_alive and not job.get("error"):
+                    job["status"] = "error"
+                    job["step_name"] = "Worker Stopped"
+                    job["error"] = "Background worker thread exited."
+                    ACTIVE_JOBS[lecture_id]["status"] = "error"
+                    ACTIVE_JOBS[lecture_id]["thread_alive"] = False
+                    ACTIVE_JOBS[lecture_id]["error"] = job["error"]
+            return job
             
     # Fallback to DB status
     lecture = get_lecture(DB_PATH, lecture_id)
@@ -157,14 +169,47 @@ def run_full_pipeline_sync(
     Executes all 3 pipeline steps synchronously.
     Can be called directly from CLI or from background thread.
     """
-    lecture = get_lecture(DB_PATH, lecture_id)
-    if not lecture:
-        raise ValueError(f"Lecture '{lecture_id}' not found in database.")
-
-    title = lecture.get("title", lecture_id)
-    video_path = lecture.get("video_path", "")
-
     try:
+        lecture = get_lecture(DB_PATH, lecture_id)
+        if not lecture:
+            import os
+            from config import LECTURE_DIR, VIDEO_EXTENSIONS
+            from pipeline.transcribe import lecture_id_from_filename
+            cand = None
+            if LECTURE_DIR and Path(LECTURE_DIR).exists():
+                for root, _, files in os.walk(LECTURE_DIR):
+                    for file in files:
+                        p = Path(root) / file
+                        if p.suffix.lower() in VIDEO_EXTENSIONS:
+                            if lecture_id_from_filename(p.name) == lecture_id:
+                                cand = p
+                                break
+                    if cand:
+                        break
+            if cand:
+                lecture = {
+                    "id": lecture_id,
+                    "title": cand.stem.replace('-', ' ').title(),
+                    "filename": cand.name,
+                    "video_path": str(cand),
+                    "transcript_path": "",
+                    "topics": [],
+                    "techniques": [],
+                    "difficulty": "",
+                    "key_moments": [],
+                    "problems_discussed": [],
+                    "concept_ladder": [],
+                    "mcqs": [],
+                    "pipeline_hash": "",
+                    "status": "new",
+                    "processed_at": None,
+                }
+                upsert_lecture(DB_PATH, lecture)
+            else:
+                raise ValueError(f"Lecture '{lecture_id}' not found in database or video directory.")
+
+        title = lecture.get("title", lecture_id)
+        video_path = lecture.get("video_path", "")
         _update_job(
             lecture_id,
             status="processing",
@@ -344,7 +389,20 @@ def start_background_job(
                     course_context=course_context
                 )
             except Exception as e:
-                logger.error(f"Background thread error for {lecture_id}: {e}")
+                err_msg = str(e)
+                logger.error(f"Background thread error for {lecture_id}: {err_msg}")
+                _update_job(
+                    lecture_id,
+                    status="error",
+                    step_name="Pipeline Failed",
+                    error=err_msg,
+                    thread_alive=False,
+                    log_msg=f"❌ Error: {err_msg}"
+                )
+            finally:
+                with _jobs_lock:
+                    if lecture_id in ACTIVE_JOBS:
+                        ACTIVE_JOBS[lecture_id]["thread_alive"] = False
 
         thread = threading.Thread(
             target=worker,

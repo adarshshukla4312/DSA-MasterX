@@ -132,12 +132,14 @@ const App = {
                 try {
                     const hwData = await API.hardware();
                     if (hwData) {
-                        const isGpu = hwData.device === 'cuda' || (hwData.label && hwData.label.toLowerCase().includes('cuda'));
-                        const title = isGpu ? 'GPU Acceleration' : 'CPU Engine';
-                        const sub = isGpu ? (hwData.model || 'NVIDIA CUDA · fp16') : 'Standard Mode';
-                        const iconName = isGpu ? 'zap' : 'activity';
+                        const isHetero = hwData.device === 'heterogeneous';
+                        const isGpu = isHetero || hwData.device === 'cuda' || (hwData.label && hwData.label.toLowerCase().includes('cuda'));
+                        const title = hwData.title || (isHetero ? '⚡ Dual CPU + iGPU' : (isGpu ? 'GPU Acceleration' : 'CPU Engine'));
+                        const sub = hwData.model || (isHetero ? 'Intel Iris Xe · OpenVINO' : (isGpu ? 'NVIDIA CUDA · fp16' : 'Standard Mode'));
+                        const iconName = (isHetero || isGpu) ? 'zap' : 'activity';
+                        const tooltip = hwData.label || 'Backend compute device';
                         hwContainer.innerHTML = `
-                            <div class="hw-badge" title="Backend compute device">
+                            <div class="hw-badge" title="${Utils.escapeHtml(tooltip)}">
                                 <div class="hw-icon-wrapper ${isGpu ? 'gpu' : 'cpu'}" aria-hidden="true">
                                     ${Icons.svg(iconName, {class: 'hw-icon'})}
                                 </div>

@@ -3,6 +3,9 @@ DSA Mastery Tool — Configuration
 """
 import os
 import sys
+
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 import shutil
 import logging
 from pathlib import Path
@@ -53,8 +56,8 @@ def _resolve_lecture_dir() -> Path:
 
     # 2. Check candidate directories for presence of video files or directory existence
     candidates = [
+        BASE_DIR.parent / "lectures",
         Path(r"C:\Java DSA"),
-        BASE_DIR.parent.parent,
         BASE_DIR.parent,
         Path(r"d:\Cources\Java DSA"),
     ]
@@ -126,7 +129,12 @@ def setup_logging():
 setup_logging()
 
 def get_hardware_status() -> dict:
-    """Detects if CTranslate2 GPU (CUDA) hardware acceleration is available."""
+    """
+    Detects hardware accelerator availability and power state:
+    1. NVIDIA CUDA (discrete GPU)
+    2. Heterogeneous CPU + Intel iGPU (OpenVINO INT8) when plugged in
+    3. Battery fallback (CPU int8 conservative mode)
+    """
     try:
         import ctranslate2
         count = ctranslate2.get_cuda_device_count()
@@ -134,23 +142,61 @@ def get_hardware_status() -> dict:
             return {
                 "device": "cuda",
                 "label": "🚀 GPU Accelerated (NVIDIA CUDA float16)",
-                "is_gpu": True
+                "title": "GPU Acceleration",
+                "model": "NVIDIA CUDA · fp16",
+                "is_gpu": True,
+                "power": "AC / Discrete",
+                "plugged_in": True
             }
     except Exception:
         pass
-        
+
+    try:
+        from pipeline.power import get_power_status
+        from pipeline.transcribe_openvino import is_intel_igpu_available
+
+        power = get_power_status()
+        igpu_available, igpu_name = is_intel_igpu_available()
+
+        if igpu_available and power.is_plugged_in:
+            return {
+                "device": "heterogeneous",
+                "label": f"⚡ Heterogeneous Dual-Worker (CPU + {igpu_name})",
+                "title": "⚡ Dual CPU + iGPU",
+                "model": "Intel Iris Xe · OpenVINO",
+                "is_gpu": True,
+                "power": power.status_text,
+                "plugged_in": True
+            }
+        elif igpu_available and not power.is_plugged_in:
+            return {
+                "device": "cpu",
+                "label": f"🔋 Battery Mode (12-Thread CPU int8) - {power.status_text}",
+                "title": "CPU Engine (Battery)",
+                "model": f"{power.battery_percent}% Battery · CPU int8",
+                "is_gpu": False,
+                "power": power.status_text,
+                "plugged_in": False
+            }
+    except Exception:
+        pass
+
     return {
         "device": "cpu",
         "label": "💻 CPU Mode (int8 fallback)",
-        "is_gpu": False
+        "title": "CPU Engine",
+        "model": "12-Thread INT8 Greedy",
+        "is_gpu": False,
+        "power": "Standard",
+        "plugged_in": True
     }
 
 # ─── LLM Configuration (Dual-Model Nemotron Architecture) ────────────────────
 LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
-# Standard Model — Fast extraction, structured output, JSON adherence
+# Standard Model — Fast extraction, structured output, JSON adherence (DeepSeek V4.1 Flash)
 LLM_STANDARD_API_KEY = os.getenv("NVIDIA_STANDARD_API_KEY", "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")
-LLM_STANDARD_MODEL = "mistralai/mistral-nemotron"
+LLM_STANDARD_MODEL = os.getenv("LLM_STANDARD_MODEL", "deepseek-ai/deepseek-v4.1-flash")
 
 # Reasoning Model — Deep algorithmic thinking, curriculum design, MCQs
 LLM_REASONING_API_KEY = os.getenv("NVIDIA_REASONING_API_KEY", "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")
@@ -166,10 +212,18 @@ LLM_MAX_TOKENS = 16384
 LLM_THINKING = True
 LLM_REASONING_EFFORT = "high"
 
-# ─── Whisper ──────────────────────────────────────────────────────────────────
-WHISPER_MODEL = "small"
-WHISPER_DEVICE = "cuda"  # Falls back to "cpu" if CUDA unavailable
-WHISPER_COMPUTE_TYPE = "float16"
+# ─── Whisper & Heterogeneous Dual-Worker Configuration ────────────────────────
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
+
+# Heterogeneous mode: 'auto' (use dual CPU+iGPU when plugged in, fallback on battery)
+#                     'heterogeneous' (force dual mode)
+#                     'cpu_only' (force single-engine CPU mode)
+WHISPER_HETEROGENEOUS_MODE = os.getenv("WHISPER_HETEROGENEOUS_MODE", "auto")
+WHISPER_CPU_THREADS_HETERO = int(os.getenv("WHISPER_CPU_THREADS_HETERO", "6"))
+WHISPER_CPU_THREADS_SOLO = int(os.getenv("WHISPER_CPU_THREADS_SOLO", str(os.cpu_count() or 12)))
+OPENVINO_WHISPER_MODEL = os.getenv("OPENVINO_WHISPER_MODEL", "OpenVINO/whisper-small-int8-ov")
 
 # ─── Recommendation ──────────────────────────────────────────────────────────
 RECOMMEND_EASY = 2

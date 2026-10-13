@@ -16,9 +16,16 @@ from config import (
     WHISPER_MODEL,
     WHISPER_DEVICE,
     WHISPER_COMPUTE_TYPE,
+    WHISPER_HETEROGENEOUS_MODE,
+    WHISPER_CPU_THREADS_HETERO,
+    WHISPER_CPU_THREADS_SOLO,
+    OPENVINO_WHISPER_MODEL,
     DB_PATH
 )
 from db.schema import get_lecture, upsert_lecture
+from pipeline.power import get_power_status
+from pipeline.transcribe_openvino import is_intel_igpu_available
+from pipeline.heterogeneous import HeterogeneousTranscriber
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +44,33 @@ def get_whisper_model(model_size, device, compute_type, force_cpu: bool = False)
     global _whisper_model
     if force_cpu or _whisper_model is None:
         from faster_whisper import WhisperModel
+        
+        # Maximize multi-core throughput across all cores and threads
+        avail_cpus = os.cpu_count() or 12
+        os.environ["OMP_NUM_THREADS"] = str(avail_cpus)
+        os.environ["MKL_NUM_THREADS"] = str(avail_cpus)
+        
         target_device = "cpu" if force_cpu else device
         target_compute = "int8" if force_cpu else compute_type
         
-        logger.info(f"Loading Whisper model '{model_size}' on {target_device} ({target_compute})...")
+        logger.info(f"Loading Whisper model '{model_size}' on {target_device} ({target_compute}) using all {avail_cpus} CPU threads...")
         try:
-            _whisper_model = WhisperModel(model_size, device=target_device, compute_type=target_compute)
+            _whisper_model = WhisperModel(
+                model_size,
+                device=target_device,
+                compute_type=target_compute,
+                cpu_threads=avail_cpus,
+                num_workers=1
+            )
         except Exception as e:
             logger.warning(f"Failed to load Whisper on {target_device}/{target_compute} ({e}). Falling back to CPU int8...")
-            _whisper_model = WhisperModel(model_size, device="cpu", compute_type="int8")
+            _whisper_model = WhisperModel(
+                model_size,
+                device="cpu",
+                compute_type="int8",
+                cpu_threads=avail_cpus,
+                num_workers=1
+            )
             
     return _whisper_model
 
@@ -172,13 +197,55 @@ def transcribe_audio(
     compute_type: str,
     progress_callback: Optional[Callable[[int, int, str], None]] = None
 ) -> dict:
-    """Runs faster-whisper on 10-minute audio chunks with initial_prompt, language=en, and tuned VAD."""
+    """
+    Transcribes audio with automatic power-aware heterogeneous acceleration:
+    - If plugged in & Intel iGPU is available: runs parallel CPU (6 threads) + iGPU (OpenVINO INT8)
+    - If on battery or CPU mode: runs single-engine 12-thread INT8 CPU transcription
+    """
     audio_path = Path(audio_path)
-    model = get_whisper_model(model_size, device, compute_type)
-    
     chunks = chunk_audio_if_needed(audio_path, chunk_seconds=600)
     total_chunks = len(chunks)
-    logger.info(f"Transcribing {audio_path.name} across {total_chunks} chunk(s)...")
+    logger.info(f"Preparing to transcribe {audio_path.name} across {total_chunks} chunk(s)...")
+
+    # Assess power topology and hardware availability
+    power = get_power_status()
+    igpu_avail, igpu_name = is_intel_igpu_available()
+
+    use_heterogeneous = (
+        WHISPER_HETEROGENEOUS_MODE in ("auto", "heterogeneous")
+        and (power.is_plugged_in or WHISPER_HETEROGENEOUS_MODE == "heterogeneous")
+        and igpu_avail
+        and total_chunks > 1
+    )
+
+    if use_heterogeneous:
+        logger.info(
+            f"⚡ Activating Heterogeneous Parallel Transcription: System plugged in ({power.status_text}). "
+            f"Dispatching {total_chunks} chunks to CPU ({WHISPER_CPU_THREADS_HETERO} threads) + {igpu_name}..."
+        )
+        if progress_callback:
+            progress_callback(
+                0,
+                total_chunks,
+                f"⚡ Starting dual CPU+iGPU parallel transcription ({total_chunks} chunks, {power.status_text})..."
+            )
+
+        transcriber = HeterogeneousTranscriber(
+            chunks=chunks,
+            initial_prompt=DSA_INITIAL_PROMPT,
+            progress_callback=progress_callback,
+            cpu_threads=WHISPER_CPU_THREADS_HETERO,
+            openvino_model_id=OPENVINO_WHISPER_MODEL
+        )
+        return transcriber.run()
+
+    # Fallback / Battery Mode: CPU-only execution with full thread budget
+    if not power.is_plugged_in:
+        logger.info(f"🔋 System on Battery ({power.battery_percent}%). Running CPU-only mode with {WHISPER_CPU_THREADS_SOLO} threads to conserve power.")
+    else:
+        logger.info(f"💻 Running standard CPU transcription with {WHISPER_CPU_THREADS_SOLO} threads.")
+
+    model = get_whisper_model(model_size, device, compute_type)
     
     segment_list = []
     full_text_parts = []
@@ -202,10 +269,14 @@ def transcribe_audio(
         for attempt in range(1, 3):
             try:
                 try:
+                    # CPU Optimization: beam_size=1 (greedy search) is 3-4x faster on CPU
                     segments, info = model.transcribe(
                         str(chunk_file),
                         language="en",
-                        beam_size=5,
+                        beam_size=1,
+                        best_of=1,
+                        temperature=0.0,
+                        condition_on_previous_text=False,
                         initial_prompt=DSA_INITIAL_PROMPT,
                         vad_filter=True,
                         vad_parameters=vad_params
@@ -218,7 +289,10 @@ def transcribe_audio(
                         segments, info = model.transcribe(
                             str(chunk_file),
                             language="en",
-                            beam_size=5,
+                            beam_size=1,
+                            best_of=1,
+                            temperature=0.0,
+                            condition_on_previous_text=False,
                             initial_prompt=DSA_INITIAL_PROMPT,
                             vad_filter=True,
                             vad_parameters=vad_params
@@ -251,7 +325,8 @@ def transcribe_audio(
         "segments": segment_list,
         "full_text": " ".join(full_text_parts),
         "language": detected_language,
-        "duration": round(total_duration, 2)
+        "duration": round(total_duration, 2),
+        "engine": "cpu"
     }
 
 
@@ -267,7 +342,10 @@ def save_transcript(lecture_id: str, title: str, transcript_data: dict, output_d
         "language": transcript_data.get("language"),
         "duration": transcript_data.get("duration"),
         "full_text": transcript_data.get("full_text"),
-        "segments": transcript_data.get("segments", [])
+        "segments": transcript_data.get("segments", []),
+        "engine": transcript_data.get("engine", "cpu"),
+        "worker_stats": transcript_data.get("worker_stats"),
+        "elapsed_seconds": transcript_data.get("elapsed_seconds")
     }
     
     with open(out_file, "w", encoding="utf-8") as f:

@@ -150,7 +150,32 @@ def api_get_lectures():
     results = []
     for v in videos:
         lid = v["lecture_id"]
-        rec = db_map.get(lid, {})
+        rec = db_map.get(lid)
+        if not rec:
+            rec = {
+                "id": lid,
+                "title": v["title"],
+                "filename": v["filename"],
+                "video_path": v["video_path"],
+                "transcript_path": "",
+                "topics": [],
+                "techniques": [],
+                "difficulty": "",
+                "key_moments": [],
+                "problems_discussed": [],
+                "concept_ladder": [],
+                "mcqs": [],
+                "pipeline_hash": "",
+                "status": "new",
+                "processed_at": None,
+            }
+            upsert_lecture(DB_PATH, rec)
+            db_map[lid] = rec
+        elif rec.get("video_path") != v["video_path"]:
+            rec["video_path"] = v["video_path"]
+            rec["filename"] = v["filename"]
+            upsert_lecture(DB_PATH, rec)
+
         merged = {
             **rec,
             **v,
@@ -238,6 +263,25 @@ def api_process_lecture(lecture_id: str, req: ProcessRequest = ProcessRequest())
         rec = get_lecture(DB_PATH, lecture_id)
         if rec and rec.get("video_path") != video_info["video_path"]:
             rec["video_path"] = video_info["video_path"]
+            upsert_lecture(DB_PATH, rec)
+        elif not rec:
+            rec = {
+                "id": lecture_id,
+                "title": video_info["title"],
+                "filename": video_info["filename"],
+                "video_path": video_info["video_path"],
+                "transcript_path": "",
+                "topics": [],
+                "techniques": [],
+                "difficulty": "",
+                "key_moments": [],
+                "problems_discussed": [],
+                "concept_ladder": [],
+                "mcqs": [],
+                "pipeline_hash": "",
+                "status": "new",
+                "processed_at": None,
+            }
             upsert_lecture(DB_PATH, rec)
         
     course_context = build_course_context_helper(video_info)
@@ -590,8 +634,9 @@ def api_pipeline_hash():
     return {"hash": compute_pipeline_hash()}
 
 # Mount static frontend
-if os.path.exists("frontend"):
-    app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+frontend_dir = Path(__file__).parent.resolve() / "frontend"
+if frontend_dir.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 
 def open_browser_when_ready(host: str = "127.0.0.1", port: int = 8000, timeout: int = 30):
     """Background thread that verifies the server is listening and ready before opening browser."""
@@ -613,4 +658,10 @@ def open_browser_when_ready(host: str = "127.0.0.1", port: int = 8000, timeout: 
 
 if __name__ == "__main__":
     open_browser_when_ready(port=8000)
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "api_server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_excludes=["data/*", "*.log", "*.db", "*.wav", "*.json", ".venv/*"]
+    )

@@ -1,4 +1,4 @@
-﻿"""
+"""
 DSA Mastery Engine — Startup Environment & Preflight Check
 Handles out-of-the-box configuration on fresh machines:
 1. Environment initialization (.env from .env.example)
@@ -9,6 +9,11 @@ Handles out-of-the-box configuration on fresh machines:
 """
 import os
 import sys
+
+# Suppress noisy symlink warnings on Windows NTFS
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["PYTHONUTF8"] = "1"
+
 import shutil
 import urllib.request
 import zipfile
@@ -106,6 +111,13 @@ def ensure_ffmpeg():
             print("[OK] FFmpeg found in WinGet links.")
             return
 
+        winget_packages = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
+        if winget_packages.exists():
+            for ffmpeg_exe in winget_packages.glob("**/ffmpeg.exe"):
+                os.environ["PATH"] = str(ffmpeg_exe.parent) + os.pathsep + os.environ.get("PATH", "")
+                print(f"[OK] FFmpeg found in WinGet packages: {ffmpeg_exe.parent}")
+                return
+
     print("\n[!] FFmpeg was not detected in PATH.")
     print("    FFmpeg is required to extract audio from lecture videos.")
     
@@ -154,12 +166,34 @@ def ensure_database():
     else:
         print("[OK] Database schema verified.")
 
+def ensure_hardware_acceleration():
+    print("\n[*] Assessing hardware acceleration and power topology...")
+    try:
+        from pipeline.power import get_power_status
+        from pipeline.transcribe_openvino import is_intel_igpu_available
+
+        power = get_power_status()
+        igpu_available, igpu_name = is_intel_igpu_available()
+
+        print(f"    Power Status: {power.status_text}")
+        if igpu_available:
+            print(f"    Intel iGPU Detected: {igpu_name}")
+            if power.is_plugged_in:
+                print("    [OK] ⚡ Heterogeneous Parallel Engine ACTIVE: CPU (6T) + Intel iGPU (OpenVINO INT8)")
+            else:
+                print("    [OK] 🔋 Battery Mode: CPU-only 12-thread mode active to conserve battery.")
+        else:
+            print("    [OK] Standard CPU Mode: Multi-threaded INT8 inference.")
+    except Exception as e:
+        print(f"    Hardware check note: {e}")
+
 def main():
     print_header()
     ensure_env_file()
     prompt_lecture_directory()
     ensure_ffmpeg()
     ensure_whisper_model()
+    ensure_hardware_acceleration()
     ensure_database()
     print("\n" + "=" * 70)
     print(" [READY] Preflight check completed successfully! Launching app...")
@@ -167,3 +201,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
