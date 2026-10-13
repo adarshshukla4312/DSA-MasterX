@@ -95,6 +95,11 @@ def init_db(db_path: str | Path) -> None:
     if "pipeline_hash" not in existing_cols:
         cursor.execute("ALTER TABLE lectures ADD COLUMN pipeline_hash TEXT DEFAULT ''")
 
+    # Migration for problems table: embedding vector
+    existing_problem_cols = {row["name"] for row in cursor.execute("PRAGMA table_info(problems)").fetchall()}
+    if "embedding" not in existing_problem_cols:
+        cursor.execute("ALTER TABLE problems ADD COLUMN embedding BLOB")
+
     conn.commit()
     conn.close()
 

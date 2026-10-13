@@ -59,6 +59,25 @@ def auto_insert_discovered_problem(prob_data: dict, db_path: str | Path) -> str 
         )
         conn.commit()
         logger.info(f"Auto-added problem to DB: {prob_id} - {title}")
+
+        # Compute & store vector embedding for newly discovered problem
+        try:
+            from pipeline.embedding import embed_text, build_problem_document, invalidate_cache
+            doc = build_problem_document({
+                "id": prob_id,
+                "title": title,
+                "platform": platform,
+                "difficulty": difficulty,
+                "patterns": patterns,
+                "description": desc
+            })
+            emb = embed_text(doc)
+            cursor.execute("UPDATE problems SET embedding = ? WHERE id = ?", (emb.tobytes(), prob_id))
+            conn.commit()
+            invalidate_cache()
+        except Exception as emb_err:
+            logger.warning(f"Could not compute embedding for auto-discovered {prob_id}: {emb_err}")
+
         return prob_id
     except sqlite3.Error as e:
         logger.error(f"Failed to auto-insert problem {prob_id}: {e}")
