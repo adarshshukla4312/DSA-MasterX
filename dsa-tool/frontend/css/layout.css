@@ -147,6 +147,32 @@ body.sidebar-hidden .hero-banner {
   background-color: rgba(59, 158, 255, 0.08);
 }
 
+.sidebar-hw .hw-icon-wrapper.battery {
+  color: var(--color-accent-yellow);
+  border-color: rgba(255, 197, 61, 0.35);
+  background-color: rgba(255, 197, 61, 0.09);
+}
+
+@keyframes hwPulseUpdate {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(17, 255, 153, 0); }
+  40% { transform: scale(1.02); box-shadow: 0 0 14px rgba(17, 255, 153, 0.35); border-color: var(--color-accent-green); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(17, 255, 153, 0); }
+}
+
+@keyframes hwPulseBattery {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 197, 61, 0); }
+  40% { transform: scale(1.02); box-shadow: 0 0 14px rgba(255, 197, 61, 0.35); border-color: var(--color-accent-yellow); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(255, 197, 61, 0); }
+}
+
+.sidebar-hw .hw-badge.pulse-update {
+  animation: hwPulseUpdate 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-hw .hw-badge.pulse-battery {
+  animation: hwPulseBattery 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .sidebar-hw .hw-icon {
   width: 12px;
   height: 12px;

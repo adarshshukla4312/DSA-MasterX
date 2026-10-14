@@ -1,6 +1,8 @@
 const App = {
     currentPage: null,
     _activeModalEscHandler: null,
+    _lastHwState: null,
+    _hwPollTimer: null,
     
     pages: {
         'home': window.HomePage,
@@ -17,6 +19,7 @@ const App = {
         // Setup global event listeners
         this.setupGlobalListeners();
         this.setupNetworkMonitoring();
+        this.startHardwareMonitoring();
         
         this.loadSidebar();
         Icons.render();
@@ -127,33 +130,7 @@ const App = {
     async loadSidebar() {
         try {
             // Load hardware status
-            const hwContainer = document.getElementById('sidebarHardware');
-            if (hwContainer) {
-                try {
-                    const hwData = await API.hardware();
-                    if (hwData) {
-                        const isHetero = hwData.device === 'heterogeneous';
-                        const isGpu = isHetero || hwData.device === 'cuda' || (hwData.label && hwData.label.toLowerCase().includes('cuda'));
-                        const title = hwData.title || (isHetero ? '⚡ Dual CPU + iGPU' : (isGpu ? 'GPU Acceleration' : 'CPU Engine'));
-                        const sub = hwData.model || (isHetero ? 'Intel Iris Xe · OpenVINO' : (isGpu ? 'NVIDIA CUDA · fp16' : 'Standard Mode'));
-                        const iconName = (isHetero || isGpu) ? 'zap' : 'activity';
-                        const tooltip = hwData.label || 'Backend compute device';
-                        hwContainer.innerHTML = `
-                            <div class="hw-badge" title="${Utils.escapeHtml(tooltip)}">
-                                <div class="hw-icon-wrapper ${isGpu ? 'gpu' : 'cpu'}" aria-hidden="true">
-                                    ${Icons.svg(iconName, {class: 'hw-icon'})}
-                                </div>
-                                <div class="hw-text">
-                                    <span class="hw-title">${Utils.escapeHtml(title)}</span>
-                                    <span class="hw-sub">${Utils.escapeHtml(sub)}</span>
-                                </div>
-                            </div>
-                        `;
-                    }
-                } catch(e) {
-                    console.error("Failed to load hardware stats", e);
-                }
-            }
+            await this.updateHardwareStatus(false);
 
             // Load aggregate stats
             const statsContainer = document.getElementById('sidebarStats');
@@ -186,6 +163,105 @@ const App = {
             }
         } catch (error) {
             console.error('Failed to load sidebar data:', error);
+        }
+    },
+
+    startHardwareMonitoring() {
+        // Hardware / Battery API (instant browser callbacks for power state changes)
+        if (typeof navigator !== 'undefined' && navigator.getBattery) {
+            navigator.getBattery().then(battery => {
+                battery.addEventListener('chargingchange', () => {
+                    this.updateHardwareStatus(true);
+                });
+                battery.addEventListener('levelchange', () => {
+                    this.updateHardwareStatus(false);
+                });
+            }).catch(() => {});
+        }
+
+        // Fast update when user returns / focuses window
+        window.addEventListener('focus', () => {
+            this.updateHardwareStatus(false);
+        });
+
+        // Background polling (every 2.5s) to detect Windows AC adapter changes and power state
+        if (this._hwPollTimer) clearInterval(this._hwPollTimer);
+        this._hwPollTimer = setInterval(() => {
+            this.updateHardwareStatus(false);
+        }, 2500);
+    },
+
+    async updateHardwareStatus(forceAnimate = false) {
+        const hwContainer = document.getElementById('sidebarHardware');
+        if (!hwContainer) return;
+
+        try {
+            const hwData = await API.hardware();
+            if (!hwData) return;
+
+            const isBattery = hwData.device === 'battery' || hwData.plugged_in === false;
+            const isHetero = hwData.device === 'heterogeneous';
+            const isGpu = !isBattery && (isHetero || hwData.device === 'cuda' || (hwData.label && hwData.label.toLowerCase().includes('cuda')));
+            
+            const title = hwData.title || (isBattery ? '🔋 CPU Engine (Battery)' : (isHetero ? '⚡ Dual CPU + iGPU' : (isGpu ? 'GPU Acceleration' : 'CPU Engine')));
+            const sub = hwData.model || (isBattery ? `${hwData.battery_percent || 0}% Battery · CPU int8` : (isHetero ? 'Intel Iris Xe · OpenVINO' : (isGpu ? 'NVIDIA CUDA · fp16' : 'Standard Mode')));
+            const iconName = isBattery ? (hwData.plugged_in ? 'battery-charging' : 'battery') : (isGpu ? 'zap' : 'activity');
+            const wrapperClass = isBattery ? 'battery' : (isGpu ? 'gpu' : 'cpu');
+            const tooltip = hwData.label || (isBattery ? 'Battery optimization mode active' : 'Backend compute device');
+
+            // Detect state change
+            let hasChanged = false;
+            let becameBattery = false;
+            let becamePlugged = false;
+
+            if (this._lastHwState) {
+                if (this._lastHwState.plugged_in !== hwData.plugged_in || this._lastHwState.device !== hwData.device) {
+                    hasChanged = true;
+                    if (!hwData.plugged_in && this._lastHwState.plugged_in) {
+                        becameBattery = true;
+                    } else if (hwData.plugged_in && !this._lastHwState.plugged_in) {
+                        becamePlugged = true;
+                    }
+                } else if (this._lastHwState.battery_percent !== hwData.battery_percent || this._lastHwState.model !== hwData.model) {
+                    hasChanged = true;
+                }
+            }
+
+            // Render DOM content
+            const shouldAnimate = forceAnimate || (this._lastHwState && (becameBattery || becamePlugged));
+            const animClass = shouldAnimate ? (isBattery ? 'pulse-battery' : 'pulse-update') : '';
+
+            hwContainer.innerHTML = `
+                <div class="hw-badge ${animClass}" title="${Utils.escapeHtml(tooltip)}">
+                    <div class="hw-icon-wrapper ${wrapperClass}" aria-hidden="true">
+                        ${Icons.svg(iconName, {class: 'hw-icon'})}
+                    </div>
+                    <div class="hw-text">
+                        <span class="hw-title">${Utils.escapeHtml(title)}</span>
+                        <span class="hw-sub">${Utils.escapeHtml(sub)}</span>
+                    </div>
+                </div>
+            `;
+
+            if (shouldAnimate) {
+                const badgeEl = hwContainer.querySelector('.hw-badge');
+                if (badgeEl) {
+                    setTimeout(() => {
+                        badgeEl.classList.remove('pulse-battery', 'pulse-update');
+                    }, 700);
+                }
+            }
+
+            // Notify user on transition
+            if (becameBattery) {
+                App.showToast(`Switched to Battery Mode: CPU int8 optimization active (${hwData.battery_percent || 0}%)`, 'info');
+            } else if (becamePlugged) {
+                App.showToast('AC Power connected: Heterogeneous Dual CPU + iGPU acceleration restored!', 'success');
+            }
+
+            this._lastHwState = hwData;
+        } catch (e) {
+            // Silently ignore transient network fetch errors during polling
         }
     },
     

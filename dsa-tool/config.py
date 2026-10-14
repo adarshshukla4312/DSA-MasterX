@@ -158,25 +158,30 @@ def get_hardware_status() -> dict:
         power = get_power_status()
         igpu_available, igpu_name = is_intel_igpu_available()
 
+        # Clean up igpu_name if it contains vendor repetition
+        display_gpu = igpu_name.replace(" (iGPU)", "").replace("(R)", "").strip()
+
         if igpu_available and power.is_plugged_in:
             return {
                 "device": "heterogeneous",
-                "label": f"⚡ Heterogeneous Dual-Worker (CPU + {igpu_name})",
+                "label": f"⚡ Heterogeneous Dual-Worker (CPU + {display_gpu})",
                 "title": "⚡ Dual CPU + iGPU",
-                "model": "Intel Iris Xe · OpenVINO",
+                "model": f"{display_gpu} · OpenVINO",
                 "is_gpu": True,
                 "power": power.status_text,
-                "plugged_in": True
+                "plugged_in": True,
+                "battery_percent": power.battery_percent
             }
         elif igpu_available and not power.is_plugged_in:
             return {
-                "device": "cpu",
+                "device": "battery",
                 "label": f"🔋 Battery Mode (12-Thread CPU int8) - {power.status_text}",
-                "title": "CPU Engine (Battery)",
+                "title": "🔋 CPU Engine (Battery)",
                 "model": f"{power.battery_percent}% Battery · CPU int8",
                 "is_gpu": False,
                 "power": power.status_text,
-                "plugged_in": False
+                "plugged_in": False,
+                "battery_percent": power.battery_percent
             }
     except Exception:
         pass
