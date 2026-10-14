@@ -227,8 +227,19 @@ WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 #                     'heterogeneous' (force dual mode)
 #                     'cpu_only' (force single-engine CPU mode)
 WHISPER_HETEROGENEOUS_MODE = os.getenv("WHISPER_HETEROGENEOUS_MODE", "auto")
-WHISPER_CPU_THREADS_HETERO = int(os.getenv("WHISPER_CPU_THREADS_HETERO", "6"))
-WHISPER_CPU_THREADS_SOLO = int(os.getenv("WHISPER_CPU_THREADS_SOLO", str(os.cpu_count() or 12)))
+
+# Dynamic hardware-scaled multi-worker thread budget:
+# Empirical benchmarks on Intel Core 5 210H show:
+#   - 4 threads (matching 4 physical P-cores) = 24.92s
+#   - 6 threads = 27.61s
+#   - 10 threads = 30.27s (E-cores drag OpenMP barrier sync down)
+# Single CPU worker eliminates Python GIL thrashing and L2 cache contention while iGPU runs OpenVINO.
+_avail_cpus = os.cpu_count() or 12
+WHISPER_CHUNK_SECONDS = int(os.getenv("WHISPER_CHUNK_SECONDS", "600"))
+WHISPER_CPU_WORKERS_HETERO = int(os.getenv("WHISPER_CPU_WORKERS_HETERO", "1"))
+WHISPER_CPU_THREADS_PER_WORKER = int(os.getenv("WHISPER_CPU_THREADS_PER_WORKER", "4"))
+WHISPER_CPU_THREADS_HETERO = WHISPER_CPU_THREADS_PER_WORKER
+WHISPER_CPU_THREADS_SOLO = int(os.getenv("WHISPER_CPU_THREADS_SOLO", str(_avail_cpus)))
 OPENVINO_WHISPER_MODEL = os.getenv("OPENVINO_WHISPER_MODEL", "OpenVINO/whisper-small-int8-ov")
 
 # ─── Recommendation ──────────────────────────────────────────────────────────

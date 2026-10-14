@@ -236,6 +236,7 @@ def api_scan_lectures():
 
 class ProcessRequest(BaseModel):
     skip_transcription: bool = False
+    force_restart: bool = False
 
 def build_course_context_helper(current_video: dict) -> str:
     curr_num = current_video.get("num", "0")
@@ -290,7 +291,7 @@ def api_process_lecture(lecture_id: str, req: ProcessRequest = ProcessRequest())
         lecture_id,
         skip_transcription=req.skip_transcription,
         course_context=course_context,
-        force_restart=False
+        force_restart=req.force_restart
     )
     if th is None:
         return {"status": "already_running"}

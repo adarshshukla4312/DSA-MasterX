@@ -20,6 +20,9 @@ from config import (
     WHISPER_DEVICE,
     WHISPER_COMPUTE_TYPE,
     WHISPER_HETEROGENEOUS_MODE,
+    WHISPER_CHUNK_SECONDS,
+    WHISPER_CPU_WORKERS_HETERO,
+    WHISPER_CPU_THREADS_PER_WORKER,
     WHISPER_CPU_THREADS_HETERO,
     WHISPER_CPU_THREADS_SOLO,
     OPENVINO_WHISPER_MODEL,
@@ -169,9 +172,9 @@ def get_rust_audio_bin() -> Optional[Path]:
     return Path(which_bin) if which_bin else None
 
 
-def chunk_audio_if_needed(audio_path: Path, chunk_seconds: int = 600) -> list[tuple[Path, float]]:
+def chunk_audio_if_needed(audio_path: Path, chunk_seconds: int = WHISPER_CHUNK_SECONDS) -> list[tuple[Path, float]]:
     """
-    Slices audio into chunks of `chunk_seconds` (default 10 mins).
+    Slices audio into chunks of `chunk_seconds` (default 10 mins / 600s).
     Uses GritX Rust Audio Engine for zero-copy, silence-aware boundary alignment.
     Falls back to FFmpeg segmenting if Rust binary is unavailable.
     Returns list of (chunk_file_path, start_offset_seconds).
@@ -249,9 +252,9 @@ def transcribe_audio(
     - If on battery or CPU mode: runs single-engine 12-thread INT8 CPU transcription
     """
     audio_path = Path(audio_path)
-    chunks = chunk_audio_if_needed(audio_path, chunk_seconds=600)
+    chunks = chunk_audio_if_needed(audio_path, chunk_seconds=WHISPER_CHUNK_SECONDS)
     total_chunks = len(chunks)
-    logger.info(f"Preparing to transcribe {audio_path.name} across {total_chunks} chunk(s)...")
+    logger.info(f"Preparing to transcribe {audio_path.name} across {total_chunks} chunk(s) (chunk size: {WHISPER_CHUNK_SECONDS//60}m)...")
 
     # Assess power topology and hardware availability
     power = get_power_status()
@@ -267,20 +270,21 @@ def transcribe_audio(
     if use_heterogeneous:
         logger.info(
             f"⚡ Activating Heterogeneous Parallel Transcription: System plugged in ({power.status_text}). "
-            f"Dispatching {total_chunks} chunks to CPU ({WHISPER_CPU_THREADS_HETERO} threads) + {igpu_name}..."
+            f"Dispatching {total_chunks} chunks to {WHISPER_CPU_WORKERS_HETERO} CPU Workers ({WHISPER_CPU_THREADS_PER_WORKER} threads each) + {igpu_name}..."
         )
         if progress_callback:
             progress_callback(
                 0,
                 total_chunks,
-                f"⚡ Starting dual CPU+iGPU parallel transcription ({total_chunks} chunks, {power.status_text})..."
+                f"⚡ Starting multi-worker CPU+iGPU parallel transcription ({total_chunks} chunks, {power.status_text})..."
             )
 
         transcriber = HeterogeneousTranscriber(
             chunks=chunks,
             initial_prompt=DSA_INITIAL_PROMPT,
             progress_callback=progress_callback,
-            cpu_threads=WHISPER_CPU_THREADS_HETERO,
+            cpu_workers=WHISPER_CPU_WORKERS_HETERO,
+            threads_per_worker=WHISPER_CPU_THREADS_PER_WORKER,
             openvino_model_id=OPENVINO_WHISPER_MODEL
         )
         return transcriber.run()

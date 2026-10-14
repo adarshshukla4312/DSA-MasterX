@@ -14,6 +14,8 @@ from config import (
     WHISPER_MODEL,
     WHISPER_DEVICE,
     WHISPER_COMPUTE_TYPE,
+    WHISPER_CPU_WORKERS_HETERO,
+    WHISPER_CPU_THREADS_PER_WORKER,
     WHISPER_CPU_THREADS_HETERO,
     OPENVINO_WHISPER_MODEL
 )
@@ -27,22 +29,25 @@ logger = logging.getLogger(__name__)
 
 class HeterogeneousTranscriber:
     """
-    Manages dual-worker parallel transcription with a dynamic work queue
-    and a chronological barrier.
+    Manages multi-worker parallel transcription with a dynamic work queue
+    and a chronological barrier across Intel iGPU and multiple CPU worker threads.
     """
     def __init__(
         self,
         chunks: List[Tuple[Path, float]],
         initial_prompt: str,
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
-        cpu_threads: int = WHISPER_CPU_THREADS_HETERO,
+        cpu_workers: int = WHISPER_CPU_WORKERS_HETERO,
+        threads_per_worker: int = WHISPER_CPU_THREADS_PER_WORKER,
         openvino_model_id: str = OPENVINO_WHISPER_MODEL
     ):
         self.chunks = chunks
         self.total_chunks = len(chunks)
         self.initial_prompt = initial_prompt
         self.progress_callback = progress_callback
-        self.cpu_threads = cpu_threads
+        self.cpu_workers = cpu_workers
+        self.threads_per_worker = threads_per_worker
+        self.cpu_threads = threads_per_worker * cpu_workers
         self.openvino_model_id = openvino_model_id
 
         self.work_queue: queue.Queue[Tuple[int, Path, float]] = queue.Queue()
@@ -51,27 +56,29 @@ class HeterogeneousTranscriber:
         self.completed_count = 0
         self.stop_event = threading.Event()
         self.errors: List[Exception] = []
-        self.worker_stats = {"cpu": 0, "igpu": 0}
+        self.worker_stats: Dict[str, int] = {"cpu": 0, "igpu": 0}
+        for i in range(1, self.cpu_workers + 1):
+            self.worker_stats[f"cpu_{i}"] = 0
 
         # Populate dynamic work queue with all chunks
         for idx, (chunk_file, time_offset) in enumerate(self.chunks):
             self.work_queue.put((idx, chunk_file, time_offset))
 
-    def _cpu_worker(self):
-        """Worker 1: CTranslate2 INT8 on CPU with allocated thread budget."""
+    def _cpu_worker(self, worker_id: int = 1):
+        """Worker: CTranslate2 INT8 on CPU with allocated thread budget."""
         from faster_whisper import WhisperModel
 
-        logger.info(f"[CPU Worker] Initializing Faster-Whisper with {self.cpu_threads} threads...")
+        logger.info(f"[CPU Worker {worker_id}] Initializing Faster-Whisper with {self.threads_per_worker} threads...")
         try:
             model = WhisperModel(
                 WHISPER_MODEL,
                 device="cpu",
                 compute_type="int8",
-                cpu_threads=self.cpu_threads,
+                cpu_threads=self.threads_per_worker,
                 num_workers=1
             )
         except Exception as e:
-            logger.error(f"[CPU Worker] Failed to initialize Whisper model: {e}")
+            logger.error(f"[CPU Worker {worker_id}] Failed to initialize Whisper model: {e}")
             self.errors.append(e)
             return
 
@@ -88,7 +95,7 @@ class HeterogeneousTranscriber:
             except queue.Empty:
                 break
 
-            logger.info(f"[CPU Worker] Transcribing chunk {idx + 1}/{self.total_chunks} ({chunk_file.name})...")
+            logger.info(f"[CPU Worker {worker_id}] Transcribing chunk {idx + 1}/{self.total_chunks} ({chunk_file.name})...")
             chunk_success = False
             for attempt in range(1, 3):
                 try:
@@ -118,30 +125,31 @@ class HeterogeneousTranscriber:
                         self.results[idx] = (chunk_segments, dur)
                         self.completed_count += 1
                         self.worker_stats["cpu"] += 1
+                        self.worker_stats[f"cpu_{worker_id}"] += 1
                         current_done = self.completed_count
 
-                    detail = f"Chunk {idx + 1}/{self.total_chunks} transcribed [CPU worker] ({current_done}/{self.total_chunks} done)"
-                    logger.info(f"[CPU Worker] {detail}")
+                    detail = f"Chunk {idx + 1}/{self.total_chunks} transcribed [CPU worker {worker_id}] ({current_done}/{self.total_chunks} done)"
+                    logger.info(f"[CPU Worker {worker_id}] {detail}")
                     if self.progress_callback:
                         self.progress_callback(current_done, self.total_chunks, detail)
 
                     chunk_success = True
                     break
                 except Exception as e:
-                    logger.warning(f"[CPU Worker] Error on chunk {idx + 1} (attempt {attempt}/2): {e}")
+                    logger.warning(f"[CPU Worker {worker_id}] Error on chunk {idx + 1} (attempt {attempt}/2): {e}")
                     time.sleep(1)
 
             if not chunk_success:
-                err_msg = f"[CPU Worker] Failed chunk {idx + 1} after 2 attempts."
+                err_msg = f"[CPU Worker {worker_id}] Failed chunk {idx + 1} after 2 attempts."
                 logger.error(err_msg)
                 self.errors.append(RuntimeError(err_msg))
 
             self.work_queue.task_done()
 
-        logger.info("[CPU Worker] Finished all assigned chunks.")
+        logger.info(f"[CPU Worker {worker_id}] Finished all assigned chunks.")
 
     def _igpu_worker(self):
-        """Worker 2: OpenVINO INT8 on Intel Iris Xe iGPU."""
+        """Worker: OpenVINO INT8 on Intel Iris Xe iGPU."""
         logger.info(f"[iGPU Worker] Starting OpenVINO worker on Intel iGPU ({self.openvino_model_id})...")
 
         while not self.stop_event.is_set():
@@ -183,26 +191,46 @@ class HeterogeneousTranscriber:
 
     def run(self) -> Dict[str, Any]:
         """
-        Launches both workers concurrently, waits at the barrier,
+        Launches iGPU worker and concurrent CPU workers, waits at the barrier,
         and reconstructs chronological segments.
         """
-        logger.info(f"⚡ Launching Heterogeneous Transcription ({self.total_chunks} chunks)...")
+        logger.info(
+            f"⚡ Launching Heterogeneous Transcription ({self.total_chunks} chunks across "
+            f"1 iGPU worker + {self.cpu_workers} CPU workers @ {self.threads_per_worker} threads each)..."
+        )
         start_time = time.time()
 
-        t_cpu = threading.Thread(target=self._cpu_worker, name="CPU-Whisper-Worker", daemon=True)
-        t_igpu = threading.Thread(target=self._igpu_worker, name="iGPU-Whisper-Worker", daemon=True)
+        workers = []
 
-        t_cpu.start()
+        # Launch concurrent CPU workers
+        for w_id in range(1, self.cpu_workers + 1):
+            t_cpu = threading.Thread(
+                target=self._cpu_worker,
+                args=(w_id,),
+                name=f"CPU-Whisper-Worker-{w_id}",
+                daemon=True
+            )
+            workers.append(t_cpu)
+            t_cpu.start()
+
+        # Launch iGPU worker
+        t_igpu = threading.Thread(
+            target=self._igpu_worker,
+            name="iGPU-Whisper-Worker",
+            daemon=True
+        )
+        workers.append(t_igpu)
         t_igpu.start()
 
-        # Barrier: Wait for both worker threads to conclude all work
-        t_cpu.join()
-        t_igpu.join()
+        # Barrier: Wait for all worker threads to conclude all work
+        for w in workers:
+            w.join()
 
         elapsed = time.time() - start_time
+        cpu_breakdown = ", ".join(f"CPU-{i}={self.worker_stats.get(f'cpu_{i}', 0)}" for i in range(1, self.cpu_workers + 1))
         logger.info(
             f"⚡ Barrier reached in {elapsed:.1f}s! Work distribution: "
-            f"CPU={self.worker_stats['cpu']} chunks, iGPU={self.worker_stats['igpu']} chunks."
+            f"iGPU={self.worker_stats['igpu']} chunks, {cpu_breakdown} (Total CPU={self.worker_stats['cpu']} chunks)."
         )
 
         if self.errors:
