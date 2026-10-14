@@ -44,6 +44,12 @@ data/dsa_tool.log
 tools/
 **/tools/ffmpeg*
 **/bin/ffmpeg*
+build/
+dist/
+*.spec
+target/
+**/target/
+*.pdb
 
 # Scratch & IDE
 .vscode/

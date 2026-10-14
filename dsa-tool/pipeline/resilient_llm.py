@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Resilient LLM Streaming, Continuation & JSON Repair Engine
+GritX — Resilient LLM Streaming, Continuation & JSON Repair Engine
 Handles streaming cut-offs, token truncations, gateway timeouts, and broken JSON.
 """
 import re

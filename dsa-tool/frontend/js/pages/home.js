@@ -4,7 +4,7 @@ window.HomePage = {
         
         // Initial Loading state
         container.innerHTML = `
-            ${Components.heroBanner('DSA Mastery Engine', 'An AI-powered pipeline that transforms raw DSA lecture videos into a structured problem database, complete with spaced repetition review and auto-generated practice sheets.', 'System Active')}
+            ${Components.heroBanner('GritX', 'An AI-powered pipeline that transforms raw DSA lecture videos into a structured problem database, complete with spaced repetition review and auto-generated practice sheets.', 'System Active')}
             <div class="grid-4 gap-md stagger-in" style="margin: 2rem 0;">
                 ${Components.skeletonCard()}
                 ${Components.skeletonCard()}
@@ -31,7 +31,7 @@ window.HomePage = {
 
     renderContent(stats) {
         const html = `
-            ${Components.heroBanner('DSA Mastery Engine', 'An AI-powered pipeline that transforms raw DSA lecture videos into a structured problem database, complete with spaced repetition review and auto-generated practice sheets.', 'System Active')}
+            ${Components.heroBanner('GritX', 'An AI-powered pipeline that transforms raw DSA lecture videos into a structured problem database, complete with spaced repetition review and auto-generated practice sheets.', 'System Active')}
             
             <div class="grid-4 gap-md stagger-in" style="margin: 2rem 0;">
                 ${Components.statCard(stats.total_lectures || 0, 'Total Lectures', '#/library')}

@@ -34,7 +34,7 @@ from pipeline.recommend import (
 from pipeline.pipeline_version import compute_pipeline_hash
 from curriculum import build_llm_course_context
 
-app = FastAPI(title="DSA Mastery Tool API")
+app = FastAPI(title="GritX API")
 
 app.add_middleware(
     CORSMiddleware,

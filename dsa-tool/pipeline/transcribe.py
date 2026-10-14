@@ -1,3 +1,6 @@
+"""
+GritX — Audio Extraction & Whisper Transcription Pipeline
+"""
 import os
 import re
 import json
@@ -153,12 +156,26 @@ def extract_audio(video_path: str, output_dir: Path | str) -> Path:
     return audio_path
 
 
+def get_rust_audio_bin() -> Optional[Path]:
+    """Finds the gritx-audio Rust optimization executable if compiled."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / "bin" / "gritx-audio.exe",
+        Path(__file__).resolve().parent.parent / "rust" / "gritx-audio" / "target" / "release" / "gritx-audio.exe",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    which_bin = shutil.which("gritx-audio")
+    return Path(which_bin) if which_bin else None
+
+
 def chunk_audio_if_needed(audio_path: Path, chunk_seconds: int = 600) -> list[tuple[Path, float]]:
     """
-    Slices audio into chunks of `chunk_seconds` (default 10 mins) using FFmpeg.
+    Slices audio into chunks of `chunk_seconds` (default 10 mins).
+    Uses GritX Rust Audio Engine for zero-copy, silence-aware boundary alignment.
+    Falls back to FFmpeg segmenting if Rust binary is unavailable.
     Returns list of (chunk_file_path, start_offset_seconds).
     """
-    ffmpeg_binary = shutil.which("ffmpeg") or "ffmpeg"
     chunks_dir = audio_path.parent / "chunks" / audio_path.stem
     chunks_dir.mkdir(parents=True, exist_ok=True)
     
@@ -169,7 +186,36 @@ def chunk_audio_if_needed(audio_path: Path, chunk_seconds: int = 600) -> list[tu
             results.append((chunk_f, float(idx * chunk_seconds)))
         return results
 
-    logger.info(f"Segmenting {audio_path.name} into {chunk_seconds//60}-minute chunks for ultra-low memory usage...")
+    # Strategy 1: High-Performance GritX Rust Audio Engine (Silence-Aware & Zero-Crossing)
+    rust_bin = get_rust_audio_bin()
+    if rust_bin:
+        try:
+            logger.info(f"⚡ [Rust Audio] Slicing {audio_path.name} with GritX Rust Engine (silence-aware, {chunk_seconds//60}m)...")
+            cmd = [
+                str(rust_bin), "slice",
+                "--input", str(audio_path),
+                "--output-dir", str(chunks_dir),
+                "--chunk-seconds", str(chunk_seconds),
+                "--search-window", "10.0",
+                "--json"
+            ]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            meta = json.loads(proc.stdout)
+            elapsed_ms = meta.get("elapsed_ms", 0)
+            chunk_list = meta.get("chunks", [])
+            logger.info(f"⚡ [Rust Audio] Successfully created {len(chunk_list)} silence-aligned chunks in {elapsed_ms}ms!")
+            
+            results = []
+            for item in chunk_list:
+                results.append((Path(item["path"]), float(item["start_seconds"])))
+            if results:
+                return results
+        except Exception as e:
+            logger.warning(f"Rust audio slicing fallback due to: {e}. Falling back to FFmpeg...")
+
+    # Strategy 2: Standard FFmpeg Segmenter Fallback
+    logger.info(f"Segmenting {audio_path.name} into {chunk_seconds//60}-minute chunks using FFmpeg fallback...")
+    ffmpeg_binary = shutil.which("ffmpeg") or "ffmpeg"
     pattern = str(chunks_dir / "chunk_%03d.wav")
     
     cmd = [

@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Background Pipeline Runner
+GritX — Background Pipeline Runner
 Runs pipeline processing in background threads independent of Streamlit UI browser sessions.
 """
 import time

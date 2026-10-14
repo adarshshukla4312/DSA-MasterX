@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — OpenVINO Intel iGPU Transcription Worker
+GritX — OpenVINO Intel iGPU Transcription Worker
 Accelerates Whisper inference on Intel integrated GPUs (Iris Xe / Arc) using OpenVINO GenAI.
 """
 import os

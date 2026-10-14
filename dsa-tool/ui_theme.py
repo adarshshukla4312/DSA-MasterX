@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Resend Design System Theme & Components
+GritX — Resend Design System Theme & Components
 Strictly adheres to DESIGN.md specs: true black canvas (#000000), editorial serif typography,
 signature white CTA pills, 1px translucent hairline borders (no drop shadows), and low-opacity atmospheric glows.
 """

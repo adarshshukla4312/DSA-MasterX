@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Configuration
+GritX — Configuration
 """
 import os
 import sys

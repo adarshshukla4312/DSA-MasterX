@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Semantic Embedding & Dense Vector Search Engine
+GritX — Semantic Embedding & Dense Vector Search Engine
 Uses FastEmbed (ONNX Runtime) with BAAI/bge-small-en-v1.5 (384 dimensions).
 Provides sub-millisecond in-memory cosine similarity and SQLite BLOB persistence.
 """

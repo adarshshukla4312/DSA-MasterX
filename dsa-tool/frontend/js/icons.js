@@ -1,5 +1,5 @@
 /**
- * DSA Mastery Engine — Pure Inline SVG Vector Icons (Lucide-based)
+ * GritX — Pure Inline SVG Vector Icons (Lucide-based)
  * 100% reliable, offline, zero-dependency instant SVG rendering with WCAG screen reader accessibility.
  */
 const Icons = {

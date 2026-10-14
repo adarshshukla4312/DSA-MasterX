@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Standalone CLI Pipeline Processor
+GritX — Standalone CLI Pipeline Processor
 Run lecture processing directly from terminal outside of browser/Streamlit.
 """
 import sys
@@ -80,7 +80,7 @@ def process_all_unprocessed(skip_transcription: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DSA Mastery Tool — CLI Pipeline Processor")
+    parser = argparse.ArgumentParser(description="GritX — CLI Pipeline Processor")
     parser.add_argument("--lecture", "-l", type=str, help="Lecture ID to process (e.g. '45-advanced-dsa-arrays-1')")
     parser.add_argument("--all", "-a", action="store_true", help="Process all unprocessed lectures in database")
     parser.add_argument("--list", action="store_true", help="List all lectures and their status")

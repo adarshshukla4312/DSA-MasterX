@@ -1,8 +1,8 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -e
 
 echo "======================================================================="
-echo "                  DSA Mastery Engine (Launcher)"
+echo "                               GritX (Launcher)"
 echo "======================================================================="
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,5 +42,5 @@ fi
 export PYTHONUTF8=1
 $VENV_PYTHON startup_check.py
 
-echo "[*] Starting DSA Mastery Engine server..."
+echo "[*] Starting GritX server..."
 $VENV_PYTHON api_server.py

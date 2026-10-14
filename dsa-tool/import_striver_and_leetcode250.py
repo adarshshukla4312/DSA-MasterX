@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Importer for Striver's A2Z DSA Sheet and NeetCode/LeetCode 250.
+GritX — Importer for Striver's A2Z DSA Sheet and NeetCode/LeetCode 250.
 Features:
 - Automated fetching of official LeetCode question catalog (4000+ problems)
 - Comprehensive multi-tier deduplication (ID, slug, URL, normalized title)

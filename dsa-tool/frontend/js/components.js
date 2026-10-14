@@ -1,5 +1,5 @@
 /**
- * DSA Mastery Engine — Reusable UI Components
+ * GritX — Reusable UI Components
  * 
  * Every function returns an HTML string.
  */

@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Heterogeneous Parallel Transcriber
+GritX — Heterogeneous Parallel Transcriber
 Executes dynamic work-stealing transcription concurrently across CPU cores (CTranslate2 INT8)
 and Intel iGPU (OpenVINO GenAI INT8) with strict chronological barrier synchronization.
 """

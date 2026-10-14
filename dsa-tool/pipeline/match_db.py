@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — State-of-the-Art Problem Matching & Candidate Retrieval
+GritX — State-of-the-Art Problem Matching & Candidate Retrieval
 Combines:
 1. Dense Semantic Vector Search (FastEmbed ONNX with BAAI/bge-small-en-v1.5)
 2. Normalized Tag Overlap (Szymkiewicz–Simpson Overlap Coefficient)

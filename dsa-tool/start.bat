@@ -1,11 +1,11 @@
 @echo off
 setlocal
-title DSA Mastery Engine
+title GritX
 color 0A
 cls
 
 echo =======================================================================
-echo                   DSA Mastery Engine (Launcher)
+echo                               GritX (Launcher)
 echo =======================================================================
 echo.
 

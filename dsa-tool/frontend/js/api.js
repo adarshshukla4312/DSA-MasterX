@@ -1,4 +1,4 @@
-// DSA Mastery Engine — API Client
+// GritX — API Client
 const API = {
     BASE: '/api',
     

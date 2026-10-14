@@ -1,13 +1,13 @@
 """
-DSA Mastery Tool — Main Streamlit App (Resend Design System)
+GritX — Main Streamlit App (Resend Design System)
 """
 import streamlit as st
 from pathlib import Path
 
 # Must be the first Streamlit command
 st.set_page_config(
-    page_title="DSA Mastery Engine",
-    page_icon="🧠",
+    page_title="GritX",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -85,7 +85,7 @@ st.markdown("""
         <span>Local GPU & Reasoner Active</span>
     </div>
     <h1 class="resend-display-xxl" style="margin-bottom: 12px;">
-        DSA Mastery Engine
+        GritX
     </h1>
     <p style="color: var(--color-body); font-family: var(--font-sans-marketing); font-size: 1.1rem; max-width: 820px; margin: 0; line-height: 1.6;">
         Transform offline lecture videos into interactive practice ladders, verbal code reconstructions, and AI-driven assignments powered by local GPU transcription and reasoning.

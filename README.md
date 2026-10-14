@@ -1,4 +1,4 @@
-﻿# 🚀 DSA Mastery Engine
+# 🚀 GritX — Algorithmic Intelligence Engine
 
 A full-featured, AI-powered DSA lecture study companion and revision engine. Transform your offline video lectures into searchable transcripts, structured concept ladders, algorithmic flashcards, MCQs, and personalized LeetCode problem recommendations.
 

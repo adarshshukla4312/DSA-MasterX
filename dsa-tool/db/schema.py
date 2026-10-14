@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — Database Schema & Initialization
+GritX — Database Schema & Initialization
 """
 import sqlite3
 import json

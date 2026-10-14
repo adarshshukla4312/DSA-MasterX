@@ -1,5 +1,5 @@
 """
-DSA Mastery Engine — Startup Environment & Preflight Check
+GritX — Startup Environment & Preflight Check
 Handles out-of-the-box configuration on fresh machines:
 1. Environment initialization (.env from .env.example)
 2. Interactive lecture directory selection
@@ -29,7 +29,7 @@ TOOLS_DIR = BASE_DIR / "tools"
 
 def print_header():
     print("=" * 70)
-    print("           DSA Mastery Engine — Preflight Startup Check")
+    print("                     GritX — Preflight Startup Check")
     print("=" * 70)
 
 def ensure_env_file():

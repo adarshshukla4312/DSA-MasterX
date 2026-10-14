@@ -1,5 +1,5 @@
 """
-DSA Mastery Tool — System Power & Hardware Detection
+GritX — System Power & Hardware Detection
 Provides zero-dependency, low-latency Windows power status detection via Win32 API.
 """
 import ctypes

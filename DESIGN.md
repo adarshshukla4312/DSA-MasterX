@@ -1,4 +1,4 @@
-# DSA Mastery Engine — Design System Specification
+# GritX — Design System Specification
 
 > **Version:** 2.0 — System B (Linear / Vercel Ultra-Clean)
 > **Canvas:** Pitch-Black Dark Theme (`#000000`)
@@ -9,7 +9,7 @@
 
 ## 1. Design Philosophy
 
-The DSA Mastery Engine is an engineering-grade algorithmic intelligence workspace.
+GritX is an engineering-grade algorithmic intelligence workspace.
 It displays high-density information — Java/Python syntax, interactive MCQs,
 5-column statistical matrices, 2-panel master-detail navigation, spaced-repetition
 metrics, and live pipeline terminal logs — on a pitch-black canvas.

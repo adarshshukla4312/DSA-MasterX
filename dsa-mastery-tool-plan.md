@@ -1,4 +1,4 @@
-# DSA Mastery Tool — Project Plan
+# GritX — Project Plan
 
 **Goal:** Turn 48 (and growing) offline Scaler DSA lectures into a personalized, ordered practice sheet — with correct problem identification, next-problem recommendations, and spaced revision.
 

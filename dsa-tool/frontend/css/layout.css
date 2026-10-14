@@ -92,6 +92,12 @@ body.sidebar-hidden .hero-banner {
   margin: 0 1px;
 }
 
+.sidebar-logo .logo-accent {
+  color: var(--color-accent-green);
+  font-weight: 800;
+  text-shadow: 0 0 12px rgba(17, 255, 153, 0.4);
+}
+
 .sidebar-hw {
   margin-bottom: 0.5rem;
 }
