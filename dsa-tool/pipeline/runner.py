@@ -2,6 +2,7 @@
 DSA Mastery Tool — Background Pipeline Runner
 Runs pipeline processing in background threads independent of Streamlit UI browser sessions.
 """
+import time
 import logging
 import threading
 import traceback
@@ -22,11 +23,13 @@ ACTIVE_JOBS: Dict[str, Dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
 
 
-def _retry_with_backoff(fn, max_retries=3, base_delay=2):
+def _retry_with_backoff(fn, max_retries=3, base_delay=2, on_attempt=None):
     import time
     last_err = None
     for attempt in range(1, max_retries + 1):
         try:
+            if on_attempt:
+                on_attempt(attempt, max_retries)
             return fn()
         except Exception as e:
             if isinstance(e, InterruptedError):
@@ -41,12 +44,8 @@ def _retry_with_backoff(fn, max_retries=3, base_delay=2):
 
 def _cleanup_cancelled_lecture(lecture_id: str):
     try:
-        # Delete transcript JSON
-        transcript_path = TRANSCRIPTS_DIR / f"{lecture_id}.json"
-        if transcript_path.exists():
-            transcript_path.unlink()
-            
-        # Delete audio WAV and chunks
+        # Do NOT delete transcript JSON if it was already produced!
+        # Only clean up intermediate audio WAV and chunks
         import shutil
         for ext in ['.wav']:
             audio_path = AUDIO_DIR / f"{lecture_id}{ext}"
@@ -104,7 +103,14 @@ def get_job_status(lecture_id: str) -> Dict[str, Any]:
             "step_name": "Completed" if lecture.get("status") == "completed" else "Idle",
             "progress": 100 if lecture.get("status") == "completed" else 0,
             "logs": [],
-            "error": None
+            "error": None,
+            "mode": "idle",
+            "attempt": 1,
+            "max_attempts": 3,
+            "token_count": 0,
+            "tokens_per_sec": 0.0,
+            "subprocess_name": "Completed",
+            "model": ""
         }
         
     return {
@@ -113,7 +119,14 @@ def get_job_status(lecture_id: str) -> Dict[str, Any]:
         "step_name": "Not Found",
         "progress": 0,
         "logs": [],
-        "error": None
+        "error": None,
+        "mode": "idle",
+        "attempt": 1,
+        "max_attempts": 3,
+        "token_count": 0,
+        "tokens_per_sec": 0.0,
+        "subprocess_name": "",
+        "model": ""
     }
 
 
@@ -128,14 +141,31 @@ def _update_job(lecture_id: str, **kwargs):
                 "progress": 0,
                 "logs": [],
                 "error": None,
-                "started_at": datetime.now().isoformat()
+                "started_at": datetime.now().isoformat(),
+                "mode": "idle",
+                "attempt": 1,
+                "max_attempts": 3,
+                "token_count": 0,
+                "tokens_per_sec": 0.0,
+                "subprocess_name": "",
+                "model": ""
             }
         ACTIVE_JOBS[lecture_id].update(kwargs)
         if "log_msg" in kwargs:
             msg = f"[{datetime.now().strftime('%H:%M:%S')}] {kwargs['log_msg']}"
             ACTIVE_JOBS[lecture_id]["logs"].append(msg)
-            # Keep last 50 logs
-            ACTIVE_JOBS[lecture_id]["logs"] = ACTIVE_JOBS[lecture_id]["logs"][-50:]
+            # Keep last 100 logs
+            ACTIVE_JOBS[lecture_id]["logs"] = ACTIVE_JOBS[lecture_id]["logs"][-100:]
+
+        # Memory leak prevention: prune oldest terminal jobs if registry exceeds threshold
+        if len(ACTIVE_JOBS) > 25:
+            terminal_keys = [
+                k for k, v in ACTIVE_JOBS.items()
+                if v.get("status") in ("completed", "error", "cancelled") and not v.get("thread_alive")
+            ]
+            if len(terminal_keys) > 10:
+                for old_key in terminal_keys[:len(terminal_keys) - 10]:
+                    del ACTIVE_JOBS[old_key]
 
 
 def cancel_job(lecture_id: str) -> bool:
@@ -216,7 +246,11 @@ def run_full_pipeline_sync(
             step_name="Step 1/3: Audio Transcription",
             progress=5,
             cancel_requested=False,
-            log_msg=f"Starting processing pipeline for '{title}'..."
+            mode="transcribing",
+            attempt=1,
+            max_attempts=3,
+            subprocess_name="Initializing audio pipeline",
+            log_msg=f"[STEP] Starting processing pipeline for '{title}'..."
         )
 
         _check_cancelled(lecture_id)
@@ -230,17 +264,28 @@ def run_full_pipeline_sync(
                 lecture_id,
                 step_name="Step 1/3: Transcribing Audio via Whisper",
                 progress=10,
-                log_msg=f"Extracting & transcribing audio from {Path(video_path).name}..."
+                mode="transcribing",
+                subprocess_name="FFmpeg 16kHz audio extraction",
+                log_msg=f"[WHISPER] Extracting 16kHz mono audio from {Path(video_path).name}..."
             )
 
             def transcribe_progress_cb(current, total, detail):
                 _check_cancelled(lecture_id)
                 pct = int(10 + (current / max(total, 1)) * 35)
+                sub_name = f"Whisper transcribing chunk {current}/{total}"
+                if detail:
+                    sub_name += f" ({detail})"
                 _update_job(
                     lecture_id,
                     progress=pct,
-                    log_msg=f"Transcribing chunk {current}/{total}..."
+                    mode="transcribing",
+                    subprocess_name=sub_name,
+                    log_msg=f"[WHISPER] Audio chunk {current}/{total} transcribed"
                 )
+
+            def on_step1_attempt(att, max_att):
+                if att > 1:
+                    _update_job(lecture_id, attempt=att, max_attempts=max_att, mode="retrying", log_msg=f"[WARN] Retrying Step 1 audio transcription (Attempt {att}/{max_att})...")
 
             process_lecture_with_retry = lambda: process_lecture(
                 video_path,
@@ -248,10 +293,10 @@ def run_full_pipeline_sync(
                 title,
                 progress_callback=transcribe_progress_cb
             )
-            _retry_with_backoff(process_lecture_with_retry, max_retries=3, base_delay=2)
-            _update_job(lecture_id, progress=45, log_msg="Step 1/3 Complete: Transcription saved!")
+            _retry_with_backoff(process_lecture_with_retry, max_retries=3, base_delay=2, on_attempt=on_step1_attempt)
+            _update_job(lecture_id, progress=45, mode="idle", subprocess_name="Transcription saved", log_msg="[SUCCESS] Step 1/3 Complete: Transcription saved!")
         else:
-            _update_job(lecture_id, progress=45, log_msg="Step 1/3 Skipped: Using existing transcript file.")
+            _update_job(lecture_id, progress=45, mode="idle", subprocess_name="Using existing transcript", log_msg="[STEP] Step 1/3 Skipped: Using existing transcript file.")
 
         _check_cancelled(lecture_id)
 
@@ -260,26 +305,52 @@ def run_full_pipeline_sync(
             lecture_id,
             step_name="Step 2/3: LLM Concept & Code Extraction",
             progress=50,
-            log_msg="Extracting core concepts & verbal code reconstruction via LLM..."
+            mode="streaming",
+            attempt=1,
+            max_attempts=3,
+            token_count=0,
+            tokens_per_sec=0.0,
+            subprocess_name="Connecting to LLM & awaiting TTFT...",
+            log_msg="[STEP] Step 2/3: Extracting core concepts & verbal code reconstruction via LLM..."
         )
 
-        def extraction_stream_cb(token):
-            # Keep log of live tokens
-            pass
+        step2_token_info = {"count": 0, "start_time": time.time()}
+
+        def step2_status_cb(telemetry: dict):
+            _check_cancelled(lecture_id)
+            _update_job(lecture_id, **telemetry)
+
+        def step2_stream_cb(token: str):
+            _check_cancelled(lecture_id)
+            step2_token_info["count"] += 1
+            if step2_token_info["count"] % 120 == 0:
+                elapsed = time.time() - step2_token_info["start_time"]
+                tok_s = round(step2_token_info["count"] / elapsed, 1) if elapsed > 0 else 0.0
+                _update_job(
+                    lecture_id,
+                    log_msg=f"[STREAM] {step2_token_info['count']} tokens streamed ({tok_s} tok/s) · Core concepts & verbal code reconstruction"
+                )
+
+        def on_step2_attempt(att, max_att):
+            if att > 1:
+                _update_job(lecture_id, attempt=att, max_attempts=max_att, mode="retrying", log_msg=f"[WARN] Retrying Step 2 LLM extraction (Attempt {att}/{max_att})...")
 
         extraction_with_retry = lambda: process_extraction(
             lecture_id,
             course_context=course_context,
-            stream_callback=extraction_stream_cb
+            stream_callback=step2_stream_cb,
+            status_callback=step2_status_cb
         )
-        extraction = _retry_with_backoff(extraction_with_retry, max_retries=3, base_delay=2)
+        extraction = _retry_with_backoff(extraction_with_retry, max_retries=3, base_delay=2, on_attempt=on_step2_attempt)
 
         topics_count = len(extraction.get("topics", []))
         problems_count = len(extraction.get("problems_discussed", []))
         _update_job(
             lecture_id,
             progress=75,
-            log_msg=f"Step 2/3 Complete: Extracted {topics_count} topics & {problems_count} problems!"
+            mode="idle",
+            subprocess_name=f"Extracted {topics_count} topics & {problems_count} problems",
+            log_msg=f"[SUCCESS] Step 2/3 Complete: Extracted {topics_count} topics & {problems_count} problems!"
         )
 
         _check_cancelled(lecture_id)
@@ -289,14 +360,43 @@ def run_full_pipeline_sync(
             lecture_id,
             step_name="Step 3/3: Unified Matching, Concept Ladder & MCQs",
             progress=80,
-            log_msg="Running unified reasoning analysis for problem matching & MCQs..."
+            mode="streaming",
+            attempt=1,
+            max_attempts=3,
+            token_count=0,
+            tokens_per_sec=0.0,
+            subprocess_name="Vector indexing & candidate search (628 problems)...",
+            log_msg="[STEP] Step 3/3: Running unified reasoning analysis for problem matching & MCQs..."
         )
+
+        step3_token_info = {"count": 0, "start_time": time.time()}
+
+        def step3_status_cb(telemetry: dict):
+            _check_cancelled(lecture_id)
+            _update_job(lecture_id, **telemetry)
+
+        def step3_stream_cb(token: str):
+            _check_cancelled(lecture_id)
+            step3_token_info["count"] += 1
+            if step3_token_info["count"] % 120 == 0:
+                elapsed = time.time() - step3_token_info["start_time"]
+                tok_s = round(step3_token_info["count"] / elapsed, 1) if elapsed > 0 else 0.0
+                _update_job(
+                    lecture_id,
+                    log_msg=f"[STREAM] {step3_token_info['count']} tokens streamed ({tok_s} tok/s) · Problem matching & MCQ generation"
+                )
+
+        def on_step3_attempt(att, max_att):
+            if att > 1:
+                _update_job(lecture_id, attempt=att, max_attempts=max_att, mode="retrying", log_msg=f"[WARN] Retrying Step 3 reasoning (Attempt {att}/{max_att})...")
 
         identification_with_retry = lambda: process_identification(
             lecture_id,
-            course_context=course_context
+            course_context=course_context,
+            stream_callback=step3_stream_cb,
+            status_callback=step3_status_cb
         )
-        _retry_with_backoff(identification_with_retry, max_retries=3, base_delay=2)
+        _retry_with_backoff(identification_with_retry, max_retries=3, base_delay=2, on_attempt=on_step3_attempt)
 
         _check_cancelled(lecture_id)
 
@@ -312,7 +412,9 @@ def run_full_pipeline_sync(
             status="completed",
             step_name="Pipeline Completed",
             progress=100,
-            log_msg="🎉 Pipeline completed successfully! Practice sheet & MCQs ready."
+            mode="idle",
+            subprocess_name="Completed",
+            log_msg="[SUCCESS] 🎉 Pipeline completed successfully! Practice sheet & MCQs ready."
         )
 
         return get_job_status(lecture_id)

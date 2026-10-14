@@ -1,4 +1,4 @@
-﻿# Virtual Environment
+# Virtual Environment
 .venv/
 venv/
 env/
@@ -22,6 +22,12 @@ data/audio/
 **/data/audio/
 data/dsa_tool.db
 **/data/dsa_tool.db
+*.db
+*.db-journal
+benchmark_results.json
+*backup*.json
+data/recovery/
+**/data/recovery/
 data/dsa_tool.log
 **/data/dsa_tool.log
 *.log

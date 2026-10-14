@@ -36,7 +36,8 @@ def extract_concepts(
     transcript_text: str,
     lecture_id: str,
     course_context: str = "",
-    stream_callback: Optional[Callable[[str], None]] = None
+    stream_callback: Optional[Callable[[str], None]] = None,
+    status_callback: Optional[Callable[[dict], None]] = None
 ) -> dict:
     """Sends transcript to DeepSeek V4 Pro with streaming and course context support."""
     client = get_llm_client()
@@ -47,80 +48,35 @@ def extract_concepts(
     
     logger.info(f"Extracting concepts for lecture {lecture_id} using {LLM_STANDARD_MODEL}...")
     
-    response_text = ""
-    last_exception = None
+    from pipeline.resilient_llm import execute_resilient_llm_call
+    from config import LLM_NON_STREAMING_TIMEOUT, DATA_DIR
 
-    for attempt in range(1, 4):
-        try:
-            try:
-                response_stream = client.chat.completions.create(
-                    model=LLM_STANDARD_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=LLM_TEMPERATURE,
-                    top_p=LLM_TOP_P,
-                    max_tokens=LLM_MAX_TOKENS,
-                    stream=True
-                )
-                
-                full_chunks = []
-                for chunk in response_stream:
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        text_chunk = chunk.choices[0].delta.content
-                        full_chunks.append(text_chunk)
-                        if stream_callback:
-                            stream_callback(text_chunk)
-                            
-                response_text = "".join(full_chunks)
-            except Exception as stream_err:
-                logger.warning(f"Streaming LLM call attempt {attempt} failed ({stream_err}), trying stream=False...")
-                completion = client.chat.completions.create(
-                    model=LLM_STANDARD_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=LLM_TEMPERATURE,
-                    top_p=LLM_TOP_P,
-                    max_tokens=LLM_MAX_TOKENS,
-                    stream=False
-                )
-                response_text = completion.choices[0].message.content
-            
-            if response_text.strip():
-                break
-        except Exception as e:
-            last_exception = e
-            err_str = str(e).lower()
-            logger.warning(f"LLM extraction attempt {attempt}/3 failed: {e}")
-            if attempt < 3:
-                import time
-                sleep_time = 2 ** attempt
-                if "429" in err_str or "rate limit" in err_str:
-                    sleep_time = 10 * attempt
-                elif "timeout" in err_str:
-                    sleep_time = 5 * attempt
-                time.sleep(sleep_time)
-            else:
-                raise last_exception
+    recovery_buffer = DATA_DIR / "recovery" / f"{lecture_id}_step2_stream.txt"
+    messages = [{"role": "user", "content": prompt}]
 
-    # Try to parse JSON from the response
-    try:
-        clean_text = response_text.strip()
-        if clean_text.startswith("```json"):
-            clean_text = clean_text[7:]
-        elif clean_text.startswith("```"):
-            clean_text = clean_text[3:]
-        if clean_text.endswith("```"):
-            clean_text = clean_text[:-3]
-            
-        concepts = json.loads(clean_text.strip())
-        return concepts
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON response for {lecture_id}: {e}\nResponse: {response_text}")
-        raise ValueError("LLM response was not valid JSON") from e
+    concepts, raw_text = execute_resilient_llm_call(
+        client=client,
+        model=LLM_STANDARD_MODEL,
+        messages=messages,
+        temperature=LLM_TEMPERATURE,
+        top_p=LLM_TOP_P,
+        max_tokens=LLM_MAX_TOKENS,
+        stream=True,
+        stream_callback=stream_callback,
+        status_callback=status_callback,
+        non_streaming_timeout=LLM_NON_STREAMING_TIMEOUT,
+        save_buffer_path=recovery_buffer,
+        fallback_list_key="problems_discussed"
+    )
+
+    return concepts
 
 
 def process_extraction(
     lecture_id: str,
     course_context: str = "",
-    stream_callback: Optional[Callable[[str], None]] = None
+    stream_callback: Optional[Callable[[str], None]] = None,
+    status_callback: Optional[Callable[[dict], None]] = None
 ) -> dict:
     """Loads transcript, calls extract_concepts with streaming & context, updates DB."""
     from datetime import datetime
@@ -149,7 +105,8 @@ def process_extraction(
         full_text,
         lecture_id,
         course_context=course_context,
-        stream_callback=stream_callback
+        stream_callback=stream_callback,
+        status_callback=status_callback
     )
     
     # Update DB

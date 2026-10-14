@@ -93,7 +93,8 @@ def unified_concept_analysis(
     techniques: list[str],
     all_problems: list[dict],
     course_context: str = "",
-    stream_callback: Optional[Callable[[str], None]] = None
+    stream_callback: Optional[Callable[[str], None]] = None,
+    status_callback: Optional[Callable[[dict], None]] = None
 ) -> dict:
     """Runs a single unified LLM call for problem matching, concept ladders, and MCQs (optimized for speed)."""
     client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_REASONING_API_KEY)
@@ -135,95 +136,38 @@ def unified_concept_analysis(
     logger.info(f"Running unified concept analysis for {lecture_id}...")
     
     # Model reasoning configuration
-    extra_body = None
-        
-    response_text = ""
-    last_exception = None
+    from pipeline.resilient_llm import execute_resilient_llm_call
+    from config import LLM_NON_STREAMING_TIMEOUT, DATA_DIR
 
-    for attempt in range(1, 4):
-        try:
-            try:
-                response_stream = client.chat.completions.create(
-                    model=LLM_REASONING_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3,
-                    top_p=LLM_TOP_P,
-                    max_tokens=LLM_MAX_TOKENS,
-                    extra_body=extra_body,
-                    stream=True
-                )
-                
-                chunks = []
-                for chunk in response_stream:
-                    if not chunk.choices:
-                        continue
-                    delta = chunk.choices[0].delta
-                    if delta.content is not None:
-                        chunks.append(delta.content)
-                        if stream_callback:
-                            stream_callback(delta.content)
-                            
-                response_text = "".join(chunks)
-            except Exception as stream_err:
-                logger.warning(f"Streaming attempt {attempt} failed ({stream_err}), trying stream=False...")
-                try:
-                    completion = client.chat.completions.create(
-                        model=LLM_REASONING_MODEL,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.3,
-                        top_p=LLM_TOP_P,
-                        max_tokens=LLM_MAX_TOKENS,
-                        extra_body=extra_body,
-                        stream=False
-                    )
-                except Exception as extra_err:
-                    logger.warning(f"Call with extra_body failed ({extra_err}), calling standard model format...")
-                    completion = client.chat.completions.create(
-                        model=LLM_REASONING_MODEL,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.3,
-                        top_p=LLM_TOP_P,
-                        max_tokens=LLM_MAX_TOKENS,
-                        stream=False
-                    )
-                response_text = completion.choices[0].message.content
-
-            if response_text.strip():
-                break
-        except Exception as e:
-            last_exception = e
-            err_str = str(e).lower()
-            logger.warning(f"Unified analysis attempt {attempt}/3 failed: {e}")
-            if attempt < 3:
-                import time
-                sleep_time = 2 ** attempt
-                if "429" in err_str or "rate limit" in err_str:
-                    sleep_time = 10 * attempt
-                elif "timeout" in err_str:
-                    sleep_time = 5 * attempt
-                time.sleep(sleep_time)
-            else:
-                raise last_exception
-
-    clean_text = response_text.strip()
-    if clean_text.startswith("```json"):
-        clean_text = clean_text[7:]
-    elif clean_text.startswith("```"):
-        clean_text = clean_text[3:]
-    if clean_text.endswith("```"):
-        clean_text = clean_text[:-3]
+    recovery_buffer = DATA_DIR / "recovery" / f"{lecture_id}_step3_stream.txt"
+    messages = [{"role": "user", "content": prompt}]
 
     try:
-        return json.loads(clean_text.strip())
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse unified analysis JSON for {lecture_id}: {e}\nResponse: {response_text}")
+        parsed_result, raw_text = execute_resilient_llm_call(
+            client=client,
+            model=LLM_REASONING_MODEL,
+            messages=messages,
+            temperature=0.3,
+            top_p=LLM_TOP_P,
+            max_tokens=LLM_MAX_TOKENS,
+            stream=True,
+            stream_callback=stream_callback,
+            status_callback=status_callback,
+            non_streaming_timeout=LLM_NON_STREAMING_TIMEOUT,  # 7 minutes
+            save_buffer_path=recovery_buffer,
+            fallback_list_key="concept_ladder"
+        )
+        return parsed_result
+    except Exception as e:
+        logger.error(f"Unified analysis failed across all resilient strategies for {lecture_id}: {e}")
         return {"matches": [], "concept_ladder": [], "mcqs": []}
 
 
 def process_identification(
     lecture_id: str,
     course_context: str = "",
-    stream_callback: Optional[Callable[[str], None]] = None
+    stream_callback: Optional[Callable[[str], None]] = None,
+    status_callback: Optional[Callable[[dict], None]] = None
 ) -> list[dict]:
     """Full pipeline step 3: loads extraction results, runs unified concept analysis, updates DB."""
     lecture = get_lecture(DB_PATH, lecture_id)
@@ -242,7 +186,8 @@ def process_identification(
         techniques=techniques,
         all_problems=all_problems,
         course_context=course_context,
-        stream_callback=stream_callback
+        stream_callback=stream_callback,
+        status_callback=status_callback
     )
     
     matches = result_data.get("matches", [])

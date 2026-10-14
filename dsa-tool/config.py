@@ -211,6 +211,7 @@ LLM_TOP_P = 0.95
 LLM_MAX_TOKENS = 16384
 LLM_THINKING = True
 LLM_REASONING_EFFORT = "high"
+LLM_NON_STREAMING_TIMEOUT = float(os.getenv("LLM_NON_STREAMING_TIMEOUT", "420.0"))  # 7 minutes timeout
 
 # ─── Whisper & Heterogeneous Dual-Worker Configuration ────────────────────────
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")

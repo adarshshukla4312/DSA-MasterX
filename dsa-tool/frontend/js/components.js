@@ -266,6 +266,76 @@ const Components = {
         return lines;
     },
 
+    // ── Live Terminal Badges (Mode, Attempt, Tokens, Subprocess) ───────
+    renderTerminalBadges(jobStatus) {
+        if (!jobStatus) return '';
+        const badges = [];
+        const mode = (jobStatus.mode || '').toLowerCase();
+        const isProcessing = jobStatus.status === 'processing' || jobStatus.status === 'starting';
+
+        // 1. Connection / Engine Mode Badge
+        if (mode === 'streaming') {
+            badges.push(`<span class="terminal-badge streaming"><span class="pulse-dot"></span>🟢 SSE Streaming</span>`);
+        } else if (mode === 'non-streaming') {
+            badges.push(`<span class="terminal-badge non-streaming"><span class="pulse-dot"></span>🔵 HTTP Non-Streaming (7m)</span>`);
+        } else if (mode === 'transcribing') {
+            badges.push(`<span class="terminal-badge transcribing"><span class="pulse-dot"></span>🟣 Whisper Audio (iGPU+CPU)</span>`);
+        } else if (mode === 'continuation') {
+            badges.push(`<span class="terminal-badge continuation"><span class="pulse-dot"></span>🟠 Tail Continuation</span>`);
+        } else if (mode === 'ast-repair') {
+            badges.push(`<span class="terminal-badge continuation"><span class="pulse-dot"></span>🟡 AST Repair</span>`);
+        } else if (mode === 'retrying') {
+            badges.push(`<span class="terminal-badge retrying"><span class="pulse-dot"></span>⚠️ Retrying (${jobStatus.attempt || 1}/${jobStatus.max_attempts || 3})</span>`);
+        }
+
+        // 2. Attempt Badge (if retrying or multiple attempts)
+        if (jobStatus.attempt && (jobStatus.attempt > 1 || mode === 'retrying')) {
+            badges.push(`<span class="terminal-badge attempt">Attempt ${jobStatus.attempt}/${jobStatus.max_attempts || 3}</span>`);
+        }
+
+        // 3. Live Token Count & Speed Badge
+        if (jobStatus.token_count && jobStatus.token_count > 0) {
+            const speedText = jobStatus.tokens_per_sec ? ` (${jobStatus.tokens_per_sec} tok/s)` : '';
+            badges.push(`<span class="terminal-badge tokens">⚡ ${jobStatus.token_count} tok${speedText}</span>`);
+        }
+
+        // 4. Exact Subprocess Name Badge
+        if (jobStatus.subprocess_name) {
+            badges.push(`<span class="terminal-badge subprocess" title="${Utils.escapeHtml(jobStatus.subprocess_name)}">⚙️ ${Utils.escapeHtml(jobStatus.subprocess_name)}</span>`);
+        }
+
+        // 5. Active Model Name Badge
+        if (jobStatus.model) {
+            const shortModel = jobStatus.model.split('/').pop() || jobStatus.model;
+            badges.push(`<span class="terminal-badge attempt" title="${Utils.escapeHtml(jobStatus.model)}">🤖 ${Utils.escapeHtml(shortModel)}</span>`);
+        }
+
+        return badges.join('');
+    },
+
+    // ── Syntax-Colored Terminal Log Row ──────────────────────────────
+    renderLogRow(line) {
+        if (!line) return '';
+        const timeMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/);
+        let timeHtml = '';
+        let bodyText = line;
+        if (timeMatch) {
+            timeHtml = `<span class="log-timestamp">${Utils.escapeHtml(timeMatch[1])}</span> `;
+            bodyText = timeMatch[2];
+        }
+
+        // Highlight syntax tags
+        let formattedBody = Utils.escapeHtml(bodyText);
+        formattedBody = formattedBody.replace(/^\[STREAM\]/g, '<span class="log-tag-stream">[STREAM]</span>')
+                                     .replace(/^\[SUCCESS\]/g, '<span class="log-tag-success">[SUCCESS]</span>')
+                                     .replace(/^\[WARN\]/g, '<span class="log-tag-warn">[WARN]</span>')
+                                     .replace(/^\[ERROR\]/g, '<span class="log-tag-error">[ERROR]</span>')
+                                     .replace(/^\[STEP\]/g, '<span class="log-tag-step">[STEP]</span>')
+                                     .replace(/^\[WHISPER\]/g, '<span class="log-tag-step">[WHISPER]</span>');
+
+        return `<div class="terminal-row">${timeHtml}<span class="log-text">${formattedBody}</span></div>`;
+    },
+
     // ── Dedicated Active Pipeline Command Card ───────────────────────
     activePipelineCard(jobStatus, lecture) {
         const progress = jobStatus?.progress || 0;
@@ -273,6 +343,7 @@ const Components = {
         const rawLogs = jobStatus?.logs || [];
         const lines = Components.formatLogLines(rawLogs);
         const parsed = Utils.parseLectureTitle(lecture?.title, lecture?.num, lecture?.filename, lecture?.id);
+        const isProcessing = jobStatus?.status === 'processing' || jobStatus?.status === 'starting';
 
         let currentStep = 1;
         const sLower = stepName.toLowerCase();
@@ -282,13 +353,7 @@ const Components = {
             currentStep = 3;
         }
 
-        const logRows = lines.map(line => {
-            const timeMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/);
-            if (timeMatch) {
-                return `<div class="terminal-row"><span class="log-timestamp">${Utils.escapeHtml(timeMatch[1])}</span> <span class="log-text">${Utils.escapeHtml(timeMatch[2])}</span></div>`;
-            }
-            return `<div class="terminal-row"><span class="log-text">${Utils.escapeHtml(line)}</span></div>`;
-        }).join('');
+        const logRows = lines.map(line => Components.renderLogRow(line)).join('');
 
         return `
         <div class="active-pipeline-card" data-lecture-id="${Utils.escapeHtml(lecture.id)}">
@@ -349,12 +414,29 @@ const Components = {
             <div class="log-container" id="logContainer-${Utils.escapeHtml(lecture.id)}">
                 <div class="terminal-console">
                     <div class="terminal-topbar">
-                        <div class="terminal-dots">
-                            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                        <div class="terminal-left-group">
+                            <div class="terminal-dots">
+                                <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+                            </div>
+                            <span class="terminal-title">live stream console</span>
                         </div>
-                        <span class="terminal-title">live stream console</span>
+                        <div class="terminal-meta-badges">
+                            ${Components.renderTerminalBadges(jobStatus)}
+                        </div>
+                        <div class="terminal-actions">
+                            <button class="terminal-act-btn" data-action="copy-terminal-logs" data-id="${Utils.escapeHtml(lecture.id)}" title="Copy terminal logs">
+                                ${Icons.svg('copy', {class: 'icon-xs'})} Copy
+                            </button>
+                            <button class="terminal-act-btn" data-action="clear-terminal-logs" data-id="${Utils.escapeHtml(lecture.id)}" title="Clear log output">
+                                ${Icons.svg('trash', {class: 'icon-xs'})} Clear
+                            </button>
+                        </div>
                     </div>
-                    <div class="log-output">${logRows}</div>
+                    <div class="log-output">${logRows}${isProcessing ? `
+                        <div class="terminal-active-cursor-line">
+                            <span class="terminal-cursor"></span>
+                            <span class="caption" style="color: #64748b; font-size: 10px;">active process</span>
+                        </div>` : ''}</div>
                 </div>
             </div>
         </div>`;
@@ -366,34 +448,49 @@ const Components = {
         const stepName = jobStatus.step_name || 'Processing';
         const rawLogs = jobStatus.logs || [];
         const lines = Components.formatLogLines(rawLogs);
+        const isProcessing = jobStatus.status === 'processing' || jobStatus.status === 'starting';
 
-        const logRows = lines.map(line => {
-            const timeMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/);
-            if (timeMatch) {
-                return `<div class="terminal-row"><span class="log-timestamp">${Utils.escapeHtml(timeMatch[1])}</span> <span class="log-text">${Utils.escapeHtml(timeMatch[2])}</span></div>`;
-            }
-            return `<div class="terminal-row"><span class="log-text">${Utils.escapeHtml(line)}</span></div>`;
-        }).join('');
+        const logRows = lines.map(line => Components.renderLogRow(line)).join('');
 
         return `
         <div class="terminal-console" style="margin-top: 10px;">
             <div class="terminal-topbar">
-                <div class="step-indicator">
-                    <span class="step-spinner"></span>
-                    <span class="pipeline-current-step-text">${Utils.escapeHtml(stepName)}</span>
-                    <span class="pipeline-progress-percentage">${Math.round(progress)}%</span>
+                <div class="terminal-left-group">
+                    <div class="terminal-dots">
+                        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+                    </div>
+                    <div class="step-indicator">
+                        <span class="step-spinner"></span>
+                        <span class="pipeline-current-step-text">${Utils.escapeHtml(stepName)}</span>
+                        <span class="pipeline-progress-percentage">${Math.round(progress)}%</span>
+                    </div>
                 </div>
-                <button class="btn-ghost btn-sm log-toggle-btn" data-action="toggle-log" data-id="${Utils.escapeHtml(lectureId)}" aria-expanded="true">
-                    ${Icons.svg('terminal', {class: 'icon-xs'})}
-                    <span class="toggle-log-text">Hide Logs</span>
-                    ${Icons.svg('chevron-up', {class: 'icon-xs toggle-chevron'})}
-                </button>
+                <div class="terminal-meta-badges">
+                    ${Components.renderTerminalBadges(jobStatus)}
+                </div>
+                <div class="terminal-actions">
+                    <button class="terminal-act-btn" data-action="copy-terminal-logs" data-id="${Utils.escapeHtml(lectureId)}" title="Copy logs">
+                        ${Icons.svg('copy', {class: 'icon-xs'})} Copy
+                    </button>
+                    <button class="terminal-act-btn" data-action="clear-terminal-logs" data-id="${Utils.escapeHtml(lectureId)}" title="Clear output">
+                        ${Icons.svg('trash', {class: 'icon-xs'})} Clear
+                    </button>
+                    <button class="btn-ghost btn-sm log-toggle-btn" data-action="toggle-log" data-id="${Utils.escapeHtml(lectureId)}" aria-expanded="true">
+                        ${Icons.svg('terminal', {class: 'icon-xs'})}
+                        <span class="toggle-log-text">Hide</span>
+                        ${Icons.svg('chevron-up', {class: 'icon-xs toggle-chevron'})}
+                    </button>
+                </div>
             </div>
             <div class="progress-bar-track" style="margin-bottom: 0; border-radius: 0; border-left: none; border-right: none;">
                 <div class="progress-bar-fill" style="width: ${Math.round(progress)}%;"></div>
             </div>
             <div class="log-container" id="logContainer-${Utils.escapeHtml(lectureId)}">
-                <div class="log-output">${logRows}</div>
+                <div class="log-output">${logRows}${isProcessing ? `
+                    <div class="terminal-active-cursor-line">
+                        <span class="terminal-cursor"></span>
+                        <span class="caption" style="color: #64748b; font-size: 10px;">active process</span>
+                    </div>` : ''}</div>
             </div>
         </div>`;
     },

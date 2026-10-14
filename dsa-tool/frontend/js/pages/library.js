@@ -250,6 +250,30 @@ window.LibraryPage = {
                 return;
             }
             
+            if (action === 'copy-terminal-logs') {
+                const card = e.target.closest('.active-pipeline-card') || e.target.closest('.terminal-console');
+                const logOutput = card ? card.querySelector('.log-output') : null;
+                if (logOutput) {
+                    const text = logOutput.innerText || logOutput.textContent || '';
+                    navigator.clipboard.writeText(text).then(() => {
+                        App.showToast('Terminal logs copied to clipboard', 'info');
+                    }).catch(() => {
+                        App.showToast('Failed to copy logs', 'error');
+                    });
+                }
+                return;
+            }
+
+            if (action === 'clear-terminal-logs') {
+                const card = e.target.closest('.active-pipeline-card') || e.target.closest('.terminal-console');
+                const logOutput = card ? card.querySelector('.log-output') : null;
+                if (logOutput) {
+                    logOutput.innerHTML = '';
+                    App.showToast('Terminal output cleared', 'info');
+                }
+                return;
+            }
+
             // For individual lecture buttons
             const card = e.target.closest('.lecture-card');
             const id = btn.dataset.id || (card ? card.dataset.lectureId : null);
@@ -534,11 +558,22 @@ window.LibraryPage = {
             }
         }
 
-        // 3. Smooth incremental log updates without flickering
+        // 3. Update rich terminal metadata badges (mode, tokens, attempt, subprocess)
+        const metaBadgesEl = card.querySelector('.terminal-meta-badges');
+        if (metaBadgesEl) {
+            metaBadgesEl.innerHTML = Components.renderTerminalBadges(jobStatus);
+        }
+
+        // 4. Smooth incremental log updates without flickering
         const logOutput = card.querySelector('.log-output');
         if (logOutput) {
             const rawLogs = jobStatus.logs || [];
             const lines = Components.formatLogLines(rawLogs);
+            const isProcessing = jobStatus.status === 'processing' || jobStatus.status === 'starting';
+
+            // Find or remove cursor
+            let cursorLine = logOutput.querySelector('.terminal-active-cursor-line');
+
             const existingRows = logOutput.querySelectorAll('.terminal-row');
             const existingCount = existingRows.length;
 
@@ -546,28 +581,47 @@ window.LibraryPage = {
                 const fragment = document.createDocumentFragment();
                 for (let i = existingCount; i < lines.length; i++) {
                     const line = lines[i];
-                    const row = document.createElement('div');
-                    row.className = 'terminal-row new-row';
-                    const timeMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/);
-                    if (timeMatch) {
-                        row.innerHTML = `<span class="log-timestamp">${Utils.escapeHtml(timeMatch[1])}</span> <span class="log-text">${Utils.escapeHtml(timeMatch[2])}</span>`;
-                    } else {
-                        row.innerHTML = `<span class="log-text">${Utils.escapeHtml(line)}</span>`;
+                    const temp = document.createElement('div');
+                    temp.innerHTML = Components.renderLogRow(line);
+                    const row = temp.firstElementChild;
+                    if (row) {
+                        row.classList.add('new-row');
+                        fragment.appendChild(row);
                     }
-                    fragment.appendChild(row);
                 }
-                logOutput.appendChild(fragment);
+                if (cursorLine) {
+                    logOutput.insertBefore(fragment, cursorLine);
+                } else {
+                    logOutput.appendChild(fragment);
+                }
                 logOutput.scrollTop = logOutput.scrollHeight;
             } else if (existingCount === 0 && lines.length > 0) {
-                const html = lines.map(line => {
-                    const timeMatch = line.match(/^(\[\d{2}:\d{2}:\d{2}\])\s*(.*)$/);
-                    if (timeMatch) {
-                        return `<div class="terminal-row"><span class="log-timestamp">${Utils.escapeHtml(timeMatch[1])}</span> <span class="log-text">${Utils.escapeHtml(timeMatch[2])}</span></div>`;
-                    }
-                    return `<div class="terminal-row"><span class="log-text">${Utils.escapeHtml(line)}</span></div>`;
-                }).join('');
+                const html = lines.map(line => Components.renderLogRow(line)).join('');
                 logOutput.innerHTML = html;
                 logOutput.scrollTop = logOutput.scrollHeight;
+            }
+
+            // Prune old DOM rows if count exceeds 100 to prevent browser DOM memory leaks
+            const allRows = logOutput.querySelectorAll('.terminal-row');
+            if (allRows.length > 100) {
+                const excess = allRows.length - 100;
+                for (let r = 0; r < excess; r++) {
+                    allRows[r].remove();
+                }
+            }
+
+            // Maintain live pulsing terminal cursor
+            cursorLine = logOutput.querySelector('.terminal-active-cursor-line');
+            if (isProcessing) {
+                if (!cursorLine) {
+                    cursorLine = document.createElement('div');
+                    cursorLine.className = 'terminal-active-cursor-line';
+                    cursorLine.innerHTML = `<span class="terminal-cursor"></span> <span class="caption" style="color: #64748b; font-size: 10px;">active process</span>`;
+                    logOutput.appendChild(cursorLine);
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+            } else if (cursorLine) {
+                cursorLine.remove();
             }
         }
     },
