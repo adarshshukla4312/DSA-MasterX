@@ -41,7 +41,31 @@ window.LibraryPage = {
             }
         } catch (error) {
             console.error('Failed to load library data', error);
-            container.innerHTML = this.getLayoutHtml(false) + '<div class="glass-card" style="margin-top: 1rem; border-color: var(--color-accent-red);"><p class="body-sm" style="color: var(--color-accent-red);">Failed to load lectures.</p></div>';
+            const errDetail = error?.message || 'Server connection refused or offline.';
+            const retryTarget = this.container;
+            container.innerHTML = this.getLayoutHtml(false) + `
+                <div class="glass-card flex-col gap-md" style="margin-top: 1rem; border-color: rgba(255, 32, 71, 0.3); background: rgba(255, 32, 71, 0.04); padding: 1.5rem;">
+                    <div class="flex-row gap-sm" style="align-items: center;">
+                        <span style="color: var(--color-accent-red);">${Icons.svg('alert-triangle', {class: 'icon-md'})}</span>
+                        <h3 class="heading-sm" style="color: var(--color-accent-red); margin: 0;">Failed to Connect to GritX Backend</h3>
+                    </div>
+                    <p class="body-sm" style="color: var(--color-body); margin: 0;">
+                        Could not retrieve lectures from the local server (<code>${Utils.escapeHtml(errDetail)}</code>).
+                        Ensure the GritX engine is active on <strong>http://localhost:8000</strong>.
+                    </p>
+                    <div class="flex-row gap-sm" style="margin-top: 0.5rem;">
+                        <button class="btn-primary" id="retryLibraryBtn" style="cursor: pointer;">
+                            ${Icons.svg('refresh-cw', {class: 'icon-sm'})} Retry Connection
+                        </button>
+                    </div>
+                </div>
+            `;
+            const retryBtn = container.querySelector('#retryLibraryBtn');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', () => {
+                    this.render(retryTarget);
+                });
+            }
         }
     },
     
