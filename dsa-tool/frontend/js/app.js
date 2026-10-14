@@ -252,13 +252,6 @@ const App = {
                 }
             }
 
-            // Notify user on transition
-            if (becameBattery) {
-                App.showToast(`Switched to Battery Mode: CPU int8 optimization active (${hwData.battery_percent || 0}%)`, 'info');
-            } else if (becamePlugged) {
-                App.showToast('AC Power connected: Heterogeneous Dual CPU + iGPU acceleration restored!', 'success');
-            }
-
             this._lastHwState = hwData;
         } catch (e) {
             // Silently ignore transient network fetch errors during polling
