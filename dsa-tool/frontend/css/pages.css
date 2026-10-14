@@ -348,51 +348,34 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(13, 17, 23, 0.95);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
 
 .terminal-left-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.terminal-dots {
-  display: flex;
-  gap: 6px;
+.terminal-icon-badge {
+  display: inline-flex;
   align-items: center;
-}
-
-.terminal-dots .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.terminal-dots .dot.red {
-  background: #ff5f56;
-  box-shadow: 0 0 6px rgba(255, 95, 86, 0.4);
-}
-
-.terminal-dots .dot.yellow {
-  background: #ffbd2e;
-  box-shadow: 0 0 6px rgba(255, 189, 46, 0.4);
-}
-
-.terminal-dots .dot.green {
-  background: #27c93f;
-  box-shadow: 0 0 6px rgba(39, 201, 63, 0.4);
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-stone);
 }
 
 .terminal-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: -0.01em;
   color: var(--color-ink);
   font-weight: 600;
   white-space: nowrap;
@@ -405,109 +388,144 @@
   flex-wrap: wrap;
 }
 
+/* High-precision, developer-first terminal chips */
+.terminal-chip,
 .terminal-badge {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  padding: 2px 7px;
-  border-radius: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
   font-weight: 500;
-  letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   line-height: 1.4;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-stone);
+  transition: all var(--transition-fast);
+}
+
+.terminal-chip svg,
+.terminal-badge svg {
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.terminal-chip.status {
+  background: rgba(255, 255, 255, 0.04);
   color: var(--color-ink);
 }
 
-.terminal-badge.streaming {
-  background: rgba(34, 211, 238, 0.12);
-  color: #22d3ee;
-  border-color: rgba(34, 211, 238, 0.35);
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.15);
+.terminal-chip.status.live {
+  background: rgba(17, 255, 153, 0.06);
+  border-color: rgba(17, 255, 153, 0.25);
+  color: #10b981;
 }
 
-.terminal-badge.non-streaming {
-  background: rgba(96, 165, 250, 0.12);
-  color: #60a5fa;
-  border-color: rgba(96, 165, 250, 0.35);
+.terminal-chip.status.warn {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
 }
 
-.terminal-badge.transcribing {
-  background: rgba(168, 85, 247, 0.12);
-  color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.35);
+.terminal-chip.status.error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
 }
 
-.terminal-badge.continuation {
-  background: rgba(251, 146, 60, 0.14);
-  color: #fb923c;
-  border-color: rgba(251, 146, 60, 0.4);
-}
-
-.terminal-badge.retrying {
-  background: rgba(245, 158, 11, 0.14);
-  color: #fbbf24;
-  border-color: rgba(245, 158, 11, 0.4);
-}
-
-.terminal-badge.tokens {
-  background: rgba(255, 255, 255, 0.06);
-  color: #f1f5f9;
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-.terminal-badge.attempt {
-  background: rgba(255, 255, 255, 0.04);
-  color: #94a3b8;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.terminal-badge.subprocess {
-  background: rgba(59, 130, 246, 0.08);
+.terminal-chip.model {
+  background: rgba(59, 158, 255, 0.06);
+  border-color: rgba(59, 158, 255, 0.22);
   color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.22);
+  font-weight: 600;
 }
 
-.terminal-badge .pulse-dot {
+.terminal-chip.metrics {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.terminal-chip.context {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--color-ash);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Crisp pulsing status dots */
+.chip-pulse-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: currentColor;
-  animation: pulseGlow 1.4s infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.chip-pulse-dot.emerald {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+  animation: pulseGlow 1.8s infinite;
+}
+
+.chip-pulse-dot.blue {
+  background: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+
+.chip-pulse-dot.purple {
+  background: #a855f7;
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+  animation: pulseGlow 1.8s infinite;
+}
+
+.chip-pulse-dot.amber {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+.chip-pulse-dot.red {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
 @keyframes pulseGlow {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 0.35; transform: scale(0.85); }
 }
 
 .terminal-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .terminal-act-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--color-ash);
-  padding: 3px 6px;
-  border-radius: 4px;
+  color: var(--color-stone);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.15s ease;
+  gap: 5px;
+  font-family: var(--font-sans);
   font-size: 11px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
 }
 
 .terminal-act-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--color-ink);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .log-container {

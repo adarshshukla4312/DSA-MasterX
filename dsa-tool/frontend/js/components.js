@@ -267,47 +267,56 @@ const Components = {
     },
 
     // ── Live Terminal Badges (Mode, Attempt, Tokens, Subprocess) ───────
+    formatModelName(model) {
+        if (!model) return '';
+        const m = model.toLowerCase();
+        if (m.includes('nemotron')) return 'Nemotron 3 Ultra · 550B';
+        if (m.includes('deepseek')) return 'DeepSeek V4.1 Flash';
+        if (m.includes('whisper')) return 'Whisper Audio (OpenVINO)';
+        return model.split('/').pop() || model;
+    },
+
+    // ── Live Terminal Badges (Mode, Attempt, Tokens, Subprocess) ───────
     renderTerminalBadges(jobStatus) {
         if (!jobStatus) return '';
         const badges = [];
         const mode = (jobStatus.mode || '').toLowerCase();
-        const isProcessing = jobStatus.status === 'processing' || jobStatus.status === 'starting';
 
-        // 1. Connection / Engine Mode Badge
+        // 1. Connection / Engine Status Pill
         if (mode === 'streaming') {
-            badges.push(`<span class="terminal-badge streaming"><span class="pulse-dot"></span>🟢 SSE Streaming</span>`);
+            badges.push(`<span class="terminal-chip status live"><span class="chip-pulse-dot emerald"></span><span>Streaming</span></span>`);
         } else if (mode === 'non-streaming') {
-            badges.push(`<span class="terminal-badge non-streaming"><span class="pulse-dot"></span>🔵 HTTP Non-Streaming (7m)</span>`);
+            badges.push(`<span class="terminal-chip status"><span class="chip-pulse-dot blue"></span><span>Batch Fallback</span></span>`);
         } else if (mode === 'transcribing') {
-            badges.push(`<span class="terminal-badge transcribing"><span class="pulse-dot"></span>🟣 Whisper Audio (iGPU+CPU)</span>`);
+            badges.push(`<span class="terminal-chip status"><span class="chip-pulse-dot purple"></span><span>Audio Transcribe</span></span>`);
         } else if (mode === 'continuation') {
-            badges.push(`<span class="terminal-badge continuation"><span class="pulse-dot"></span>🟠 Tail Continuation</span>`);
+            badges.push(`<span class="terminal-chip status warn"><span class="chip-pulse-dot amber"></span><span>Tail Recovery</span></span>`);
         } else if (mode === 'ast-repair') {
-            badges.push(`<span class="terminal-badge continuation"><span class="pulse-dot"></span>🟡 AST Repair</span>`);
+            badges.push(`<span class="terminal-chip status warn"><span class="chip-pulse-dot amber"></span><span>AST Recovery</span></span>`);
         } else if (mode === 'retrying') {
-            badges.push(`<span class="terminal-badge retrying"><span class="pulse-dot"></span>⚠️ Retrying (${jobStatus.attempt || 1}/${jobStatus.max_attempts || 3})</span>`);
+            badges.push(`<span class="terminal-chip status error"><span class="chip-pulse-dot red"></span><span>Retry ${jobStatus.attempt || 1}/${jobStatus.max_attempts || 3}</span></span>`);
         }
 
-        // 2. Attempt Badge (if retrying or multiple attempts)
-        if (jobStatus.attempt && (jobStatus.attempt > 1 || mode === 'retrying')) {
-            badges.push(`<span class="terminal-badge attempt">Attempt ${jobStatus.attempt}/${jobStatus.max_attempts || 3}</span>`);
-        }
-
-        // 3. Live Token Count & Speed Badge
-        if (jobStatus.token_count && jobStatus.token_count > 0) {
-            const speedText = jobStatus.tokens_per_sec ? ` (${jobStatus.tokens_per_sec} tok/s)` : '';
-            badges.push(`<span class="terminal-badge tokens">⚡ ${jobStatus.token_count} tok${speedText}</span>`);
-        }
-
-        // 4. Exact Subprocess Name Badge
-        if (jobStatus.subprocess_name) {
-            badges.push(`<span class="terminal-badge subprocess" title="${Utils.escapeHtml(jobStatus.subprocess_name)}">⚙️ ${Utils.escapeHtml(jobStatus.subprocess_name)}</span>`);
-        }
-
-        // 5. Active Model Name Badge
+        // 2. Active Model Chip
         if (jobStatus.model) {
-            const shortModel = jobStatus.model.split('/').pop() || jobStatus.model;
-            badges.push(`<span class="terminal-badge attempt" title="${Utils.escapeHtml(jobStatus.model)}">🤖 ${Utils.escapeHtml(shortModel)}</span>`);
+            const displayModel = Components.formatModelName(jobStatus.model);
+            badges.push(`<span class="terminal-chip model" title="${Utils.escapeHtml(jobStatus.model)}">${Icons.svg('cpu', {class: 'icon-xs'})}<span>${Utils.escapeHtml(displayModel)}</span></span>`);
+        }
+
+        // 3. Live Token Count & Speed Metric
+        if (jobStatus.token_count && jobStatus.token_count > 0) {
+            const speedText = jobStatus.tokens_per_sec ? ` · ${jobStatus.tokens_per_sec} t/s` : '';
+            badges.push(`<span class="terminal-chip metrics">${Icons.svg('zap', {class: 'icon-xs'})}<span>${Number(jobStatus.token_count).toLocaleString()} tok${speedText}</span></span>`);
+        }
+
+        // 4. Exact Subprocess (Filtered to avoid repeating model / stream state)
+        if (jobStatus.subprocess_name) {
+            const sub = jobStatus.subprocess_name.trim();
+            const subLower = sub.toLowerCase();
+            const isRedundant = subLower.startsWith('streaming ') && subLower.endsWith(' tokens');
+            if (!isRedundant && sub) {
+                badges.push(`<span class="terminal-chip context" title="${Utils.escapeHtml(sub)}">${Icons.svg('activity', {class: 'icon-xs'})}<span>${Utils.escapeHtml(sub)}</span></span>`);
+            }
         }
 
         return badges.join('');
@@ -415,27 +424,27 @@ const Components = {
                 <div class="terminal-console">
                     <div class="terminal-topbar">
                         <div class="terminal-left-group">
-                            <div class="terminal-dots">
-                                <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-                            </div>
-                            <span class="terminal-title">live stream console</span>
+                            <span class="terminal-icon-badge">${Icons.svg('terminal', {class: 'icon-xs'})}</span>
+                            <span class="terminal-title">Execution Stream</span>
                         </div>
                         <div class="terminal-meta-badges">
                             ${Components.renderTerminalBadges(jobStatus)}
                         </div>
                         <div class="terminal-actions">
                             <button class="terminal-act-btn" data-action="copy-terminal-logs" data-id="${Utils.escapeHtml(lecture.id)}" title="Copy terminal logs">
-                                ${Icons.svg('copy', {class: 'icon-xs'})} Copy
+                                ${Icons.svg('copy', {class: 'icon-xs'})}
+                                <span>Copy</span>
                             </button>
                             <button class="terminal-act-btn" data-action="clear-terminal-logs" data-id="${Utils.escapeHtml(lecture.id)}" title="Clear log output">
-                                ${Icons.svg('trash', {class: 'icon-xs'})} Clear
+                                ${Icons.svg('trash', {class: 'icon-xs'})}
+                                <span>Clear</span>
                             </button>
                         </div>
                     </div>
                     <div class="log-output">${logRows}${isProcessing ? `
                         <div class="terminal-active-cursor-line">
                             <span class="terminal-cursor"></span>
-                            <span class="caption" style="color: #64748b; font-size: 10px;">active process</span>
+                            <span class="caption" style="color: var(--color-ash); font-size: 11px; letter-spacing: 0.02em;">streaming live output...</span>
                         </div>` : ''}</div>
                 </div>
             </div>
@@ -456,9 +465,7 @@ const Components = {
         <div class="terminal-console" style="margin-top: 10px;">
             <div class="terminal-topbar">
                 <div class="terminal-left-group">
-                    <div class="terminal-dots">
-                        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-                    </div>
+                    <span class="terminal-icon-badge">${Icons.svg('terminal', {class: 'icon-xs'})}</span>
                     <div class="step-indicator">
                         <span class="step-spinner"></span>
                         <span class="pipeline-current-step-text">${Utils.escapeHtml(stepName)}</span>
@@ -470,10 +477,12 @@ const Components = {
                 </div>
                 <div class="terminal-actions">
                     <button class="terminal-act-btn" data-action="copy-terminal-logs" data-id="${Utils.escapeHtml(lectureId)}" title="Copy logs">
-                        ${Icons.svg('copy', {class: 'icon-xs'})} Copy
+                        ${Icons.svg('copy', {class: 'icon-xs'})}
+                        <span>Copy</span>
                     </button>
                     <button class="terminal-act-btn" data-action="clear-terminal-logs" data-id="${Utils.escapeHtml(lectureId)}" title="Clear output">
-                        ${Icons.svg('trash', {class: 'icon-xs'})} Clear
+                        ${Icons.svg('trash', {class: 'icon-xs'})}
+                        <span>Clear</span>
                     </button>
                     <button class="btn-ghost btn-sm log-toggle-btn" data-action="toggle-log" data-id="${Utils.escapeHtml(lectureId)}" aria-expanded="true">
                         ${Icons.svg('terminal', {class: 'icon-xs'})}
@@ -489,7 +498,7 @@ const Components = {
                 <div class="log-output">${logRows}${isProcessing ? `
                     <div class="terminal-active-cursor-line">
                         <span class="terminal-cursor"></span>
-                        <span class="caption" style="color: #64748b; font-size: 10px;">active process</span>
+                        <span class="caption" style="color: var(--color-ash); font-size: 11px; letter-spacing: 0.02em;">streaming live output...</span>
                     </div>` : ''}</div>
             </div>
         </div>`;
